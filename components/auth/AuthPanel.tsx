@@ -33,6 +33,15 @@ export default function AuthPanel() {
     setIsSubmitting(true);
     setMessage("");
 
+    const getRedirectUrl = () => {
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+      const baseUrl =
+        typeof siteUrl === "string" && siteUrl.length > 0
+          ? siteUrl.replace(/\/+$/, "")
+          : window.location.origin;
+      return `${baseUrl}/auth/callback`;
+    };
+
     try {
       const trimmedEmail = email.trim();
       const trimmedUsername = username.trim();
@@ -46,7 +55,7 @@ export default function AuthPanel() {
         throw new Error("Password is required.");
       }
 
-      const redirectTo = `${window.location.origin}/auth/callback`;
+      const redirectTo = getRedirectUrl();
 
       if (mode === "sign-up") {
         if (!trimmedUsername) {
