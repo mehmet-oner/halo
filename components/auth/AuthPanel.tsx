@@ -15,7 +15,7 @@ export default function AuthPanel() {
   const supabase = useSupabaseClient();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const paramMode = searchParams.get("mode") === "sign-in" ? "sign-in" : "sign-up";
+  const paramMode = searchParams.get("mode") === "sign-up" ? "sign-up" : "sign-in";
   const [mode, setMode] = useState<AuthMode>(paramMode);
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
@@ -38,7 +38,7 @@ export default function AuthPanel() {
     const params = new URLSearchParams(searchParams.toString());
     params.set("mode", nextMode);
     const query = params.toString();
-    router.replace(query ? `/?${query}` : "/?mode=sign-up", { scroll: false });
+    router.replace(query ? `/?${query}` : "/?mode=sign-in", { scroll: false });
   };
 
   const toggleMode = () => {

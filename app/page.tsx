@@ -944,7 +944,7 @@ export default function Home() {
     const url = '/api/auth/sign-out';
     await fetch(url, { method: 'POST', credentials: 'include' });
     await supabase.auth.signOut();
-    router.replace('/?mode=sign-in');
+    router.replace('/');
     router.refresh();
   }, [router, supabase]);
 
