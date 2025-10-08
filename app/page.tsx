@@ -2,12 +2,13 @@
 
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   BookOpen,
   Check,
   Home as HomeIcon,
+  ChevronDown,
   MessageCircle,
   Plus,
   Users,
@@ -174,15 +175,44 @@ function Dashboard({ displayName, email, onSignOut }: DashboardProps) {
 
   const currentGroup = useMemo(() => GROUPS[activeGroup], [activeGroup]);
   const initials = useMemo(() => displayName.slice(0, 2).toUpperCase(), [displayName]);
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement | null>(null);
 
   const handleSignOutClick = useCallback(async () => {
     try {
+      setShowAccountMenu(false);
       setSigningOut(true);
       await onSignOut();
     } finally {
       setSigningOut(false);
     }
   }, [onSignOut]);
+
+  useEffect(() => {
+    if (!showAccountMenu) {
+      return;
+    }
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (accountMenuRef.current && !accountMenuRef.current.contains(event.target as Node)) {
+        setShowAccountMenu(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setShowAccountMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('keydown', handleEscape);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [showAccountMenu]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -399,16 +429,14 @@ function Dashboard({ displayName, email, onSignOut }: DashboardProps) {
       <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/80 backdrop-blur">
         <div className="mx-auto flex w-full max-w-xl items-center justify-between px-5 py-4">
           <div className="flex items-center gap-3">
-            <div className="relative h-10 w-10 overflow-hidden rounded-full border border-slate-200 shadow-sm">
-              <Image
-                src="/halo-logo.png"
-                alt="Halo logo"
-                fill
-                sizes="40px"
-                className="object-cover"
-                priority
-              />
-            </div>
+            <Image
+              src="/halo-logo.png"
+              alt="Halo logo"
+              width={40}
+              height={40}
+              className="h-10 w-10 rounded-full border border-slate-200 object-cover shadow-sm"
+              priority
+            />
             <div>
               <h1 className="text-xl font-semibold tracking-tight text-slate-900">
                 Halo
@@ -419,23 +447,37 @@ function Dashboard({ displayName, email, onSignOut }: DashboardProps) {
             </div>
           </div>
           <div className="flex items-center justify-end gap-3">
-            <div className="flex items-center gap-3 rounded-full border border-slate-200 bg-white/80 px-3 py-2 shadow-sm">
-              <div className="hidden h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold tracking-tight text-white sm:flex">
-                {initials}
-              </div>
-              <div className="flex min-w-0 flex-col leading-tight">
-                <span className="text-sm font-semibold text-slate-900">{displayName}</span>
-                {email && (
-                  <span className="truncate text-xs text-slate-500">{email}</span>
-                )}
-              </div>
+            <div className="relative" ref={accountMenuRef}>
               <button
-                onClick={handleSignOutClick}
-                disabled={signingOut}
-                className="rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                type="button"
+                onClick={() => setShowAccountMenu((prev) => !prev)}
+                className="flex items-center gap-3 rounded-full border border-slate-200 bg-white/80 px-3 py-2 text-left text-sm font-semibold text-slate-900 shadow-sm transition hover:border-slate-300 hover:bg-white"
               >
-                {signingOut ? 'Signing out...' : 'Sign out'}
+                <div className="hidden h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold tracking-tight text-white sm:flex">
+                  {initials}
+                </div>
+                <ChevronDown
+                  size={16}
+                  className={`text-slate-400 transition ${showAccountMenu ? 'rotate-180' : ''}`}
+                />
               </button>
+
+              {showAccountMenu && (
+                <div className="absolute right-0 z-20 mt-2 w-48 rounded-2xl border border-slate-200 bg-white/95 p-3 text-sm text-slate-700 shadow-xl backdrop-blur">
+                  <div className="mb-2">
+                    <p className="truncate font-semibold text-slate-900">{displayName}</p>
+                    {email && <p className="truncate text-xs text-slate-500">{email}</p>}
+                  </div>
+                  <button
+                    onClick={handleSignOutClick}
+                    disabled={signingOut}
+                    className="flex w-full items-center justify-between rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+                  >
+                    <span>Sign out</span>
+                    {signingOut && <span className="text-[10px] uppercase tracking-wide">...</span>}
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -899,6 +941,8 @@ export default function Home() {
   }, [user]);
 
   const handleSignOut = useCallback(async () => {
+    const url = '/api/auth/sign-out';
+    await fetch(url, { method: 'POST', credentials: 'include' });
     await supabase.auth.signOut();
     router.replace('/?mode=sign-in');
     router.refresh();

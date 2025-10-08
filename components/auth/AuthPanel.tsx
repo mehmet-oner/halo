@@ -148,14 +148,16 @@ export default function AuthPanel() {
     <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-12">
       <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white/80 p-8 shadow-lg backdrop-blur">
         <div className="mb-6 flex justify-center">
-          <Image
-            src="/halo-logo.png"
-            alt="Halo symbol"
-            width={100}
-            height={96}
-            className="h-24 w-24"
-            priority
-          />
+          <div className="relative h-24 w-24">
+            <Image
+              src="/halo-logo.png"
+              alt="Halo symbol"
+              fill
+              sizes="96px"
+              className="h-full w-full object-contain"
+              priority
+            />
+          </div>
         </div>
         <div className="mb-6 text-center">
           <h1 className="text-2xl font-semibold text-slate-900">Sign {mode === "sign-up" ? "Up" : "In"}</h1>
