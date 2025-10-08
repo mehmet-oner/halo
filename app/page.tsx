@@ -423,6 +423,12 @@ function Dashboard({ displayName, email, onSignOut }: DashboardProps) {
               <div className="hidden h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold tracking-tight text-white sm:flex">
                 {initials}
               </div>
+              <div className="flex min-w-0 flex-col leading-tight">
+                <span className="text-sm font-semibold text-slate-900">{displayName}</span>
+                {email && (
+                  <span className="truncate text-xs text-slate-500">{email}</span>
+                )}
+              </div>
               <button
                 onClick={handleSignOutClick}
                 disabled={signingOut}
@@ -894,7 +900,7 @@ export default function Home() {
 
   const handleSignOut = useCallback(async () => {
     await supabase.auth.signOut();
-    router.replace('/');
+    router.replace('/?mode=sign-in');
     router.refresh();
   }, [router, supabase]);
 

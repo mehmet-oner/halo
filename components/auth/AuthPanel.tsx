@@ -1,9 +1,10 @@
 'use client';
 
 import Image from "next/image";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSupabaseClient } from "@supabase/auth-helpers-react";
 import { AuthApiError } from "@supabase/supabase-js";
+import { useRouter, useSearchParams } from "next/navigation";
 
 type AuthMode = "sign-in" | "sign-up";
 
@@ -12,7 +13,10 @@ const INITIAL_MESSAGE =
 
 export default function AuthPanel() {
   const supabase = useSupabaseClient();
-  const [mode, setMode] = useState<AuthMode>("sign-up");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const paramMode = searchParams.get("mode") === "sign-in" ? "sign-in" : "sign-up";
+  const [mode, setMode] = useState<AuthMode>(paramMode);
   const [email, setEmail] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -20,8 +24,26 @@ export default function AuthPanel() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
 
+  useEffect(() => {
+    if (mode === paramMode) {
+      return;
+    }
+    setMode(paramMode);
+    setMessage(INITIAL_MESSAGE);
+    setShowConfirmation(false);
+  }, [mode, paramMode]);
+
+  const updateMode = (nextMode: AuthMode) => {
+    setMode(nextMode);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("mode", nextMode);
+    const query = params.toString();
+    router.replace(query ? `/?${query}` : "/?mode=sign-up", { scroll: false });
+  };
+
   const toggleMode = () => {
-    setMode((prev) => (prev === "sign-in" ? "sign-up" : "sign-in"));
+    const nextMode = mode === "sign-in" ? "sign-up" : "sign-in";
+    updateMode(nextMode);
     setMessage(INITIAL_MESSAGE);
     setUsername("");
     setPassword("");
@@ -78,7 +100,7 @@ export default function AuthPanel() {
         if (error) {
           if (error instanceof AuthApiError && error.status === 400) {
             setMessage("An account already exists for this email. Switch to Sign in to continue.");
-            setMode("sign-in");
+            updateMode("sign-in");
             setShowConfirmation(false);
             return;
           }
@@ -87,7 +109,7 @@ export default function AuthPanel() {
 
         if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
           setMessage("An account already exists for this email. Switch to Sign in to continue.");
-          setMode("sign-in");
+          updateMode("sign-in");
           setShowConfirmation(false);
           return;
         }
@@ -97,7 +119,7 @@ export default function AuthPanel() {
         );
         setPassword("");
         setShowConfirmation(true);
-        setMode("sign-in");
+        updateMode("sign-in");
       } else {
         const { data, error } = await supabase.auth.signInWithPassword({
           email: trimmedEmail,
