@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { cookies } from "next/headers";
+import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import SupabaseProvider from "@/components/providers/SupabaseProvider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -17,17 +20,22 @@ export const metadata: Metadata = {
   description: "Quite status sharing for close circles",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const supabase = createServerComponentClient({ cookies });
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+
   return (
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <SupabaseProvider initialSession={session}>{children}</SupabaseProvider>
       </body>
     </html>
   );

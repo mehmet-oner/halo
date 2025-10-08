@@ -1,7 +1,8 @@
 'use client';
 
 import Image from 'next/image';
-import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import {
   BookOpen,
@@ -11,6 +12,8 @@ import {
   Plus,
   Users,
 } from 'lucide-react';
+import { useSession, useSupabaseClient } from '@supabase/auth-helpers-react';
+import AuthPanel from '@/components/auth/AuthPanel';
 
 type Member = {
   id: number;
@@ -133,7 +136,14 @@ const STATUS_TIMEOUTS: Record<string, number> = {
 
 const CURRENT_USER_ID = 1;
 
-export default function Home() {
+type DashboardProps = {
+  displayName: string;
+  email: string | null;
+  onSignOut: () => Promise<void> | void;
+};
+
+function Dashboard({ displayName, email, onSignOut }: DashboardProps) {
+  const [signingOut, setSigningOut] = useState(false);
   const [activeGroup, setActiveGroup] = useState<keyof typeof GROUPS>('family');
   const [memberStatuses, setMemberStatuses] = useState<Record<string, MemberStatus>>({});
   const [statusTimeout, setStatusTimeout] = useState<string>('1h');
@@ -163,6 +173,16 @@ export default function Home() {
   const [newPollOptions, setNewPollOptions] = useState<string[]>(['', '']);
 
   const currentGroup = useMemo(() => GROUPS[activeGroup], [activeGroup]);
+  const initials = useMemo(() => displayName.slice(0, 2).toUpperCase(), [displayName]);
+
+  const handleSignOutClick = useCallback(async () => {
+    try {
+      setSigningOut(true);
+      await onSignOut();
+    } finally {
+      setSigningOut(false);
+    }
+  }, [onSignOut]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -398,8 +418,19 @@ export default function Home() {
               </p>
             </div>
           </div>
-          <div className="hidden h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-white sm:flex">
-            H
+          <div className="flex items-center justify-end gap-3">
+            <div className="flex items-center gap-3 rounded-full border border-slate-200 bg-white/80 px-3 py-2 shadow-sm">
+              <div className="hidden h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold tracking-tight text-white sm:flex">
+                {initials}
+              </div>
+              <button
+                onClick={handleSignOutClick}
+                disabled={signingOut}
+                className="rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+              >
+                {signingOut ? 'Signing out...' : 'Sign out'}
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -613,6 +644,8 @@ export default function Home() {
                           expiresAt: null,
                         }
                       : null);
+              const resolvedName =
+                member.id === CURRENT_USER_ID ? displayName : member.name;
 
               return (
                 <div
@@ -621,11 +654,11 @@ export default function Home() {
                 >
                   <div className="flex flex-1 items-start gap-3">
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-sm font-semibold text-white">
-                      {member.name.slice(0, 2)}
+                      {resolvedName.slice(0, 2)}
                     </div>
                     <div className="flex-1">
                       <div className="font-medium text-slate-900">
-                        {member.name}
+                        {resolvedName}
                       </div>
                       {currentStatus ? (
                         <div className="mt-1 flex flex-col gap-2 text-sm text-slate-600">
@@ -640,7 +673,7 @@ export default function Home() {
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
                                 src={currentStatus.image}
-                                alt={`${member.name} status`}
+                                alt={`${resolvedName} status`}
                                 className="h-28 w-full rounded-xl object-cover"
                               />
                             </>
@@ -838,5 +871,42 @@ export default function Home() {
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function Home() {
+  const session = useSession();
+  const supabase = useSupabaseClient();
+  const router = useRouter();
+  const user = session?.user ?? null;
+
+  const displayName = useMemo(() => {
+    const rawUsername = user?.user_metadata?.username;
+    if (typeof rawUsername === 'string' && rawUsername.trim().length > 0) {
+      return rawUsername.trim();
+    }
+    const email = user?.email;
+    if (email) {
+      return email.split('@')[0] ?? email;
+    }
+    return 'Friend';
+  }, [user]);
+
+  const handleSignOut = useCallback(async () => {
+    await supabase.auth.signOut();
+    router.replace('/');
+    router.refresh();
+  }, [router, supabase]);
+
+  if (!session) {
+    return <AuthPanel />;
+  }
+
+  return (
+    <Dashboard
+      displayName={displayName}
+      email={user?.email ?? null}
+      onSignOut={handleSignOut}
+    />
   );
 }
