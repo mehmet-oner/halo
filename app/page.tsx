@@ -69,12 +69,13 @@ export default function Home() {
     }
   }, [router, supabase]);
 
-  if (!session || forceLanding) {
+  if (!session || !user || forceLanding) {
     return <LandingPage />;
   }
 
   return (
     <Dashboard
+      userId={user.id}
       displayName={displayName}
       email={user?.email ?? null}
       onSignOut={handleSignOut}
