@@ -1,14 +1,14 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseRouteHandlerClient } from '@/lib/supabaseServerClient';
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { GROUP_WITH_MEMBERS_SELECT } from '@/lib/groups/select';
 import { mapGroupRecord } from '@/lib/groups/mapGroupRecord';
 
 export async function POST(
-  _request: Request,
-  { params }: { params: { groupId: string } }
+  _request: NextRequest,
+  context: { params: Promise<{ groupId: string }> }
 ) {
-  const { groupId } = params;
+  const { groupId } = await context.params;
   if (!groupId) {
     return NextResponse.json({ error: 'Group id is required.' }, { status: 400 });
   }

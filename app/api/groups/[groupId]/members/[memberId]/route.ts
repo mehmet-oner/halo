@@ -1,10 +1,10 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseRouteHandlerClient } from '@/lib/supabaseServerClient';
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 
 export async function DELETE(
-  _request: Request,
-  { params }: { params: { groupId: string; memberId: string } }
+  _request: NextRequest,
+  context: { params: Promise<{ groupId: string; memberId: string }> }
 ) {
   const supabase = await getSupabaseRouteHandlerClient();
   const {
@@ -15,7 +15,7 @@ export async function DELETE(
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { groupId, memberId } = params;
+  const { groupId, memberId } = await context.params;
 
   if (!groupId || !memberId) {
     return NextResponse.json({ error: 'Group id and member id are required.' }, { status: 400 });
