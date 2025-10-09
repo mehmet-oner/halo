@@ -16,26 +16,21 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const supabase = createServerComponentClient({ cookies });
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
+  const [{ data: sessionData }, userResult] = await Promise.all([
+    supabase.auth.getSession(),
+    supabase.auth.getUser(),
+  ]);
+
+  const session = sessionData.session;
   let initialSession: Session | null = null;
 
-  if (session) {
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser();
-
-    if (userError) {
-      console.warn("Supabase getUser failed:", userError.message);
-    } else if (user) {
-      const mutableSession = session as Session;
-      mutableSession.user = user;
-      initialSession = mutableSession;
-    }
-  } else {
-    initialSession = null;
+  if (userResult.error) {
+    console.warn("Supabase getUser failed:", userResult.error.message);
+  } else if (session && userResult.data.user) {
+    initialSession = {
+      ...session,
+      user: userResult.data.user,
+    } as Session;
   }
 
   return (
