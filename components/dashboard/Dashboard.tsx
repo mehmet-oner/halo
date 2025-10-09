@@ -31,7 +31,7 @@ import {
   getDisplayName,
   type QuickStatus,
 } from '@/components/dashboard/groupPresets';
-import type { GroupMember, GroupRecord } from '@/types/groups';
+import type { GroupMember, GroupRecord, GroupStatusRecord } from '@/types/groups';
 
 type MemberStatus = {
   status: string;
@@ -55,6 +55,30 @@ const STATUS_TIMEOUTS: Record<string, number> = {
   '4h': 4 * 60 * 60 * 1000,
   '8h': 8 * 60 * 60 * 1000,
   '24h': 24 * 60 * 60 * 1000,
+};
+
+const formatRelativeTimestamp = (iso: string) => {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return 'Just now';
+  }
+
+  const diffMs = Date.now() - date.getTime();
+  if (diffMs < 60_000) {
+    return 'Just now';
+  }
+
+  const diffMinutes = Math.floor(diffMs / 60_000);
+  if (diffMinutes < 60) {
+    return `${diffMinutes} min${diffMinutes === 1 ? '' : 's'} ago`;
+  }
+
+  const diffHours = Math.floor(diffMinutes / 60);
+  if (diffHours < 24) {
+    return `${diffHours} hr${diffHours === 1 ? '' : 's'} ago`;
+  }
+
+  return date.toLocaleDateString();
 };
 
 type DashboardProps = {
@@ -136,6 +160,73 @@ export default function Dashboard({ userId, displayName, email, onSignOut }: Das
   const quickStatuses: QuickStatus[] = presetConfig?.statuses ?? DEFAULT_STATUSES;
   const initials = useMemo(() => renderInitials(displayName), [displayName]);
   const IconForActiveGroup = resolveIcon(activeGroup?.icon ?? 'users');
+
+  const syncGroupStatuses = useCallback(
+    (groupId: string, records: GroupStatusRecord[], replace: boolean) => {
+      setMemberStatuses((prev) => {
+        const next = { ...prev };
+
+        if (replace) {
+          Object.keys(next).forEach((key) => {
+            if (key.startsWith(`${groupId}-`)) {
+              delete next[key];
+            }
+          });
+        }
+
+        records.forEach((record) => {
+          next[getStatusKey(groupId, record.userId)] = {
+            status: record.status,
+            emoji: record.emoji ?? '',
+            timestamp: formatRelativeTimestamp(record.updatedAt),
+            image: record.image,
+            expiresAt: record.expiresAt ? new Date(record.expiresAt).getTime() : null,
+          };
+        });
+
+        return next;
+      });
+    },
+    []
+  );
+
+  const fetchGroupStatuses = useCallback(
+    async (groupId: string) => {
+      try {
+        const response = await fetch(`/api/groups/${groupId}/statuses`, { cache: 'no-store' });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(payload.error ?? 'Unable to load statuses.');
+        }
+        const payload = (await response.json()) as { statuses: GroupStatusRecord[] };
+        syncGroupStatuses(groupId, payload.statuses ?? [], true);
+      } catch (error) {
+        console.error('Failed to fetch statuses', error);
+      }
+    },
+    [syncGroupStatuses]
+  );
+
+  const activeGroupIdForFetch = activeGroup?.id ?? null;
+
+  useEffect(() => {
+    if (!activeGroupIdForFetch) {
+      return;
+    }
+    void fetchGroupStatuses(activeGroupIdForFetch);
+  }, [activeGroupIdForFetch, fetchGroupStatuses]);
+
+  useEffect(() => {
+    if (!activeGroupIdForFetch) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      void fetchGroupStatuses(activeGroupIdForFetch);
+    }, 60_000);
+
+    return () => window.clearInterval(interval);
+  }, [activeGroupIdForFetch, fetchGroupStatuses]);
 
   useEffect(() => {
     if (!showAccountMenu) return;
@@ -257,22 +348,43 @@ export default function Dashboard({ userId, displayName, email, onSignOut }: Das
     reader.readAsDataURL(file);
   };
 
-  const updateStatus = (status: QuickStatus) => {
-    if (!activeGroup) return;
+  const submitStatus = useCallback(
+    async (
+      payload: { status: string; emoji: string | null; image: string | null; expiresAt: number | null }
+    ) => {
+      if (!activeGroup) return;
 
-    const key = getStatusKey(activeGroup.id, userId);
+      const response = await fetch(`/api/groups/${activeGroup.id}/statuses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const problem = await response.json().catch(() => ({}));
+        throw new Error(problem.error ?? 'Unable to update status.');
+      }
+
+      const result = (await response.json()) as { status: GroupStatusRecord };
+      syncGroupStatuses(activeGroup.id, [result.status], false);
+    },
+    [activeGroup, syncGroupStatuses]
+  );
+
+  const updateStatus = async (status: QuickStatus) => {
+    if (!activeGroup) return;
     const expiresAt = getExpirationTime(statusTimeout);
 
-    setMemberStatuses((previous) => ({
-      ...previous,
-      [key]: {
+    try {
+      await submitStatus({
         status: status.label,
         emoji: status.emoji,
-        timestamp: 'Just now',
         image: null,
         expiresAt,
-      },
-    }));
+      });
+    } catch (error) {
+      console.error('Failed to post status', error);
+    }
 
     setShowStatusPicker(false);
     setShowCustomStatus(false);
@@ -281,23 +393,22 @@ export default function Dashboard({ userId, displayName, email, onSignOut }: Das
     setCustomImage(null);
   };
 
-  const saveCustomStatus = () => {
+  const saveCustomStatus = async () => {
     if (!activeGroup) return;
     if (!customMessage.trim() && !customImage) return;
 
-    const key = getStatusKey(activeGroup.id, userId);
     const expiresAt = getExpirationTime(statusTimeout);
 
-    setMemberStatuses((previous) => ({
-      ...previous,
-      [key]: {
+    try {
+      await submitStatus({
         status: customMessage.trim() || 'Custom status',
         emoji: '💬',
-        timestamp: 'Just now',
         image: customImage,
         expiresAt,
-      },
-    }));
+      });
+    } catch (error) {
+      console.error('Failed to post custom status', error);
+    }
 
     setCustomMessage('');
     setCustomImage(null);
@@ -662,9 +773,9 @@ export default function Dashboard({ userId, displayName, email, onSignOut }: Das
                     <p className="mb-2 text-sm font-semibold text-slate-700">Suggested</p>
                     <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                       {quickStatuses.map((status) => (
-                        <button
-                          key={status.label}
-                          onClick={() => updateStatus(status)}
+                    <button
+                      key={status.label}
+                      onClick={() => void updateStatus(status)}
                           className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm transition hover:border-slate-400 hover:bg-slate-100/70"
                         >
                           <span className="text-lg">{status.emoji}</span>
@@ -720,8 +831,8 @@ export default function Dashboard({ userId, displayName, email, onSignOut }: Das
                         )}
 
                         <div className="flex gap-2">
-                          <button
-                            onClick={saveCustomStatus}
+                      <button
+                        onClick={() => void saveCustomStatus()}
                             disabled={!customMessage.trim() && !customImage}
                             className="flex-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition disabled:bg-slate-200 disabled:text-slate-400"
                           >

@@ -27,3 +27,13 @@ export type CreateGroupPayload = {
   icon: string;
   memberIds?: string[];
 };
+
+export type GroupStatusRecord = {
+  groupId: string;
+  userId: string;
+  status: string;
+  emoji: string | null;
+  image: string | null;
+  expiresAt: string | null;
+  updatedAt: string;
+};
