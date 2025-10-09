@@ -121,6 +121,7 @@ export default function Dashboard({ userId, displayName, email, onSignOut }: Das
   const supabase = useSupabaseClient();
   const { groups, loading, error, addGroup, removeMembership, refresh } = useGroups();
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
+  const hasAppliedStoredGroup = useRef(false);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [inviteGroup, setInviteGroup] = useState<GroupRecord | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
@@ -150,10 +151,31 @@ export default function Dashboard({ userId, displayName, email, onSignOut }: Das
   }, [groups, activeGroupId]);
 
   useEffect(() => {
-    if (groups.length && !activeGroupId) {
+    if (!groups.length) {
+      return;
+    }
+
+    if (!hasAppliedStoredGroup.current) {
+      hasAppliedStoredGroup.current = true;
+      if (typeof window !== 'undefined') {
+        const stored = window.localStorage.getItem('halo:last-group-id');
+        const match = stored && groups.some((group) => group.id === stored) ? stored : null;
+        setActiveGroupId(match ?? groups[0].id);
+        return;
+      }
+    }
+
+    if (!activeGroupId) {
       setActiveGroupId(groups[0].id);
     }
   }, [groups, activeGroupId]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !activeGroupId) {
+      return;
+    }
+    window.localStorage.setItem('halo:last-group-id', activeGroupId);
+  }, [activeGroupId]);
 
   const isOwner = activeGroup?.ownerId === userId;
   const presetConfig = findPreset(activeGroup?.preset ?? undefined);
