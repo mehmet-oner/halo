@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { cookies } from "next/headers";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
+import type { Session } from "@supabase/auth-helpers-nextjs";
 import SupabaseProvider from "@/components/providers/SupabaseProvider";
 import "./globals.css";
 
@@ -29,13 +30,33 @@ export default async function RootLayout({
   const {
     data: { session },
   } = await supabase.auth.getSession();
+  let initialSession: Session | null = null;
+
+  if (session) {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser();
+
+    if (userError) {
+      console.warn("Supabase getUser failed:", userError.message);
+    } else if (user) {
+      const mutableSession = session as Session;
+      mutableSession.user = user;
+      initialSession = mutableSession;
+    }
+  } else {
+    initialSession = null;
+  }
 
   return (
     <html lang="en">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <SupabaseProvider initialSession={session}>{children}</SupabaseProvider>
+        <SupabaseProvider initialSession={initialSession}>
+          {children}
+        </SupabaseProvider>
       </body>
     </html>
   );
