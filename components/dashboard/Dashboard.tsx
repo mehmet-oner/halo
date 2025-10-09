@@ -57,6 +57,8 @@ const STATUS_TIMEOUTS: Record<string, number> = {
   '24h': 24 * 60 * 60 * 1000,
 };
 
+const STATUS_POLL_INTERVAL_MS = 2_000;
+
 const formatRelativeTimestamp = (iso: string) => {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) {
@@ -244,8 +246,11 @@ export default function Dashboard({ userId, displayName, email, onSignOut }: Das
     }
 
     const interval = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
       void fetchGroupStatuses(activeGroupIdForFetch);
-    }, 60_000);
+    }, STATUS_POLL_INTERVAL_MS);
 
     return () => window.clearInterval(interval);
   }, [activeGroupIdForFetch, fetchGroupStatuses]);
