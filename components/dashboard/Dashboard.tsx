@@ -11,6 +11,7 @@ import {
   MessageCircle,
   Plus,
   Users,
+  X,
 } from 'lucide-react';
 
 type Member = {
@@ -169,6 +170,8 @@ export default function Dashboard({ displayName, email, onSignOut }: DashboardPr
   const [showCreatePoll, setShowCreatePoll] = useState(false);
   const [newPollQuestion, setNewPollQuestion] = useState('');
   const [newPollOptions, setNewPollOptions] = useState<string[]>(['', '']);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [previewAlt, setPreviewAlt] = useState('');
 
   const currentGroup = useMemo(() => GROUPS[activeGroup], [activeGroup]);
   const initials = useMemo(() => displayName.slice(0, 2).toUpperCase(), [displayName]);
@@ -210,6 +213,37 @@ export default function Dashboard({ displayName, email, onSignOut }: DashboardPr
       document.removeEventListener('keydown', handleEscape);
     };
   }, [showAccountMenu]);
+
+  const closePreview = useCallback(() => {
+    setPreviewImage(null);
+    setPreviewAlt('');
+  }, []);
+
+  const openPreview = useCallback((src: string, alt: string) => {
+    setPreviewImage(src);
+    setPreviewAlt(alt);
+  }, []);
+
+  useEffect(() => {
+    if (!previewImage) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        closePreview();
+      }
+    };
+
+    const originalOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [previewImage, closePreview]);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -408,7 +442,7 @@ export default function Dashboard({ displayName, email, onSignOut }: DashboardPr
     <select
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-sm transition focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400/60"
+      className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm text-slate-700 transition focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400/60"
     >
       <option value="30m">30 minutes</option>
       <option value="1h">1 hour</option>
@@ -515,7 +549,7 @@ export default function Dashboard({ displayName, email, onSignOut }: DashboardPr
             </div>
             <button
               onClick={() => setShowStatusPicker((prev) => !prev)}
-              className="flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100/60"
+              className="flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100/70"
             >
               {userStatus ? 'Update status' : 'Post status'}
             </button>
@@ -530,16 +564,6 @@ export default function Dashboard({ displayName, email, onSignOut }: DashboardPr
                 </div>
                 <span className="text-xs text-slate-400">{userStatus.timestamp}</span>
               </div>
-              {userStatus.image && (
-                <div className="mt-3">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={userStatus.image}
-                    alt="Status attachment"
-                    className="h-40 w-full rounded-2xl object-cover"
-                  />
-                </div>
-              )}
             </div>
           )}
 
@@ -580,7 +604,7 @@ export default function Dashboard({ displayName, email, onSignOut }: DashboardPr
                       onChange={(event) => setCustomMessage(event.target.value)}
                       placeholder="Write a short update..."
                       rows={3}
-                      className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-700 transition focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400/60"
+                      className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400/60"
                     />
 
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -594,6 +618,17 @@ export default function Dashboard({ displayName, email, onSignOut }: DashboardPr
                         {renderStatusExpirySelect(statusTimeout, setStatusTimeout)}
                       </div>
                     </div>
+
+                    {customImage && (
+                      <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={customImage}
+                          alt="Custom status preview"
+                          className="max-h-60 w-full object-contain"
+                        />
+                      </div>
+                    )}
 
                     <div className="flex gap-2">
                       <button
@@ -674,14 +709,19 @@ export default function Dashboard({ displayName, email, onSignOut }: DashboardPr
                             <span>{currentStatus.status}</span>
                           </div>
                           {currentStatus.image && (
-                            <>
+                            <button
+                              type="button"
+                              onClick={() => openPreview(currentStatus.image!, `${resolvedName} status photo`)}
+                              className="mx-auto w-[55%] max-w-xs rounded-xl bg-slate-100/60 p-2 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400/60"
+                              aria-label={`View ${resolvedName} status photo`}
+                            >
                               {/* eslint-disable-next-line @next/next/no-img-element */}
                               <img
                                 src={currentStatus.image}
-                                alt={`${resolvedName} status`}
-                                className="h-28 w-full rounded-xl object-cover"
+                                alt={`${resolvedName} status photo thumbnail`}
+                                className="max-h-48 w-full rounded-lg object-contain"
                               />
-                            </>
+                            </button>
                           )}
                         </div>
                       ) : (
@@ -858,6 +898,35 @@ export default function Dashboard({ displayName, email, onSignOut }: DashboardPr
           </div>
         </section>
       </main>
+
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-950/85 px-4"
+          onClick={closePreview}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="relative max-h-[90vh] w-full max-w-4xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={closePreview}
+              className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/80 text-white shadow-lg transition hover:bg-slate-900"
+              aria-label="Close full-size photo"
+            >
+              <X size={18} />
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewImage}
+              alt={previewAlt}
+              className="h-full w-full rounded-3xl object-contain"
+            />
+          </div>
+        </div>
+      )}
 
       <footer className="fixed bottom-0 left-0 right-0 z-20 border-t border-slate-200/70 bg-white/90 backdrop-blur">
         <div className="mx-auto flex w-full max-w-xl items-center justify-around px-5 py-3 text-xs font-medium text-slate-500">
