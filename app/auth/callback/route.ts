@@ -10,7 +10,10 @@ export async function GET(request: Request) {
   const type = requestUrl.searchParams.get("type");
   const email = requestUrl.searchParams.get("email");
 
-  const supabase = createRouteHandlerClient({ cookies });
+  const cookieStore = await cookies();
+  const supabase = createRouteHandlerClient({
+    cookies: () => cookieStore,
+  });
 
   if (code) {
     await supabase.auth.exchangeCodeForSession(code);

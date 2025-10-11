@@ -21,7 +21,7 @@ const getRouteClientCache = () => {
 };
 
 export const getSupabaseRouteHandlerClient = async () => {
-  const cookieStore = cookies();
+  const cookieStore = await cookies();
   const cache = getRouteClientCache();
 
   const cachedClient = cache.get(cookieStore);

@@ -42,7 +42,7 @@ const STATUS_TIMEOUTS: Record<string, number> = {
   '24h': 24 * 60 * 60 * 1000,
 };
 
-const STATUS_POLL_INTERVAL_MS = 2_000;
+const STATUS_POLL_INTERVAL_MS = 5_000;
 
 const formatRelativeTimestamp = (iso: string) => {
   const date = new Date(iso);
