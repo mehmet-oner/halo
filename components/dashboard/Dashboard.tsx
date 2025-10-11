@@ -807,7 +807,7 @@ export default function Dashboard({ userId, displayName, email, onSignOut }: Das
               </div>
             </section>
 
-            <QuickPolls userId={userId} />
+            <QuickPolls userId={userId} groupId={activeGroup.id} />
           </>
         )}
       </main>

@@ -1,46 +1,29 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { Check, Plus } from 'lucide-react';
-
-type Poll = {
-  id: number;
-  question: string;
-  options: string[];
-  votes: Record<string, string[]>;
-  createdBy: string;
-};
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Check, Loader2, Plus } from 'lucide-react';
+import type { GroupPollRecord } from '@/types/polls';
 
 type QuickPollsProps = {
   userId: string;
+  groupId: string;
 };
-
-const defaultPolls: Poll[] = [
-  {
-    id: 1,
-    question: 'Dinner tonight?',
-    options: ['Pizza', 'Chinese', 'Cook at home'],
-    votes: { Pizza: [], Chinese: [], 'Cook at home': [] },
-    createdBy: '',
-  },
-  {
-    id: 2,
-    question: 'Movie this weekend?',
-    options: ['Yes', 'Maybe', 'No'],
-    votes: { Yes: [], Maybe: [], No: [] },
-    createdBy: '',
-  },
-];
 
 const MAX_OPTIONS = 6;
 
-export default function QuickPolls({ userId }: QuickPollsProps) {
-  const [polls, setPolls] = useState<Poll[]>(defaultPolls);
-  const [userVotes, setUserVotes] = useState<Record<number, string>>({});
+const createEmptyOptions = () => ['', ''];
+
+export default function QuickPolls({ userId, groupId }: QuickPollsProps) {
+  const [polls, setPolls] = useState<GroupPollRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [showCreatePoll, setShowCreatePoll] = useState(false);
   const [newPollQuestion, setNewPollQuestion] = useState('');
-  const [newPollOptions, setNewPollOptions] = useState<string[]>(['', '']);
+  const [newPollOptions, setNewPollOptions] = useState<string[]>(createEmptyOptions);
   const [pollValidationError, setPollValidationError] = useState<string | null>(null);
+  const [creatingPoll, setCreatingPoll] = useState(false);
+  const [pendingVotePollId, setPendingVotePollId] = useState<string | null>(null);
+  const [pendingDeletePollId, setPendingDeletePollId] = useState<string | null>(null);
 
   const trimmedPollQuestion = newPollQuestion.trim();
   const trimmedPollOptions = useMemo(
@@ -70,7 +53,39 @@ export default function QuickPolls({ userId }: QuickPollsProps) {
 
   const pollHasDuplicateOptions = duplicatePollOptionIndexes.size > 0;
   const pollHasMinimumOptions = trimmedPollOptions.filter(Boolean).length >= 2;
-  const pollCreateDisabled = !trimmedPollQuestion || !pollHasMinimumOptions || pollHasDuplicateOptions;
+  const pollCreateDisabled =
+    !trimmedPollQuestion || !pollHasMinimumOptions || pollHasDuplicateOptions || creatingPoll;
+
+  const resetComposer = () => {
+    setNewPollQuestion('');
+    setNewPollOptions(createEmptyOptions);
+    setPollValidationError(null);
+  };
+
+  const fetchPolls = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/groups/${groupId}/polls`, { cache: 'no-store' });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error ?? 'Unable to load polls.');
+      }
+
+      const payload = (await response.json()) as { polls: GroupPollRecord[] };
+      setPolls(payload.polls ?? []);
+    } catch (fetchError) {
+      console.error('Failed to fetch polls', fetchError);
+      setError('Unable to load polls right now.');
+      setPolls([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [groupId]);
+
+  useEffect(() => {
+    void fetchPolls();
+  }, [fetchPolls]);
 
   useEffect(() => {
     if (!pollValidationError) return;
@@ -78,42 +93,6 @@ export default function QuickPolls({ userId }: QuickPollsProps) {
       setPollValidationError(null);
     }
   }, [pollCreateDisabled, pollValidationError]);
-
-  const handleVote = (pollId: number, option: string) => {
-    setPolls((previous) =>
-      previous.map((poll) => {
-        if (poll.id !== pollId) return poll;
-
-        const updatedVotes: Poll['votes'] = Object.fromEntries(
-          Object.entries(poll.votes).map(([label, value]) => [label, [...value]])
-        );
-
-        const currentVote = userVotes[pollId];
-        if (currentVote) {
-          updatedVotes[currentVote] = updatedVotes[currentVote].filter((id) => id !== userId);
-        }
-
-        if (currentVote !== option) {
-          if (!updatedVotes[option]) {
-            updatedVotes[option] = [];
-          }
-          updatedVotes[option] = [...updatedVotes[option], userId];
-        }
-
-        return { ...poll, votes: updatedVotes };
-      })
-    );
-
-    setUserVotes((previous) => {
-      const currentVote = previous[pollId];
-      if (currentVote === option) {
-        const updated = { ...previous };
-        delete updated[pollId];
-        return updated;
-      }
-      return { ...previous, [pollId]: option };
-    });
-  };
 
   const addPollOption = () => {
     setNewPollOptions((previous) => (previous.length < MAX_OPTIONS ? [...previous, ''] : previous));
@@ -134,53 +113,109 @@ export default function QuickPolls({ userId }: QuickPollsProps) {
     });
   };
 
-  const resetComposer = () => {
-    setNewPollQuestion('');
-    setNewPollOptions(['', '']);
-    setPollValidationError(null);
-  };
-
-  const createPoll = () => {
+  const createPoll = async () => {
     if (!trimmedPollQuestion) {
       setPollValidationError('Add a question to get started.');
       return;
     }
+
     const validOptions = trimmedPollOptions.filter(Boolean);
     if (validOptions.length < 2) {
       setPollValidationError('Add at least two options.');
       return;
     }
-    const normalizedOptions = validOptions.map((option) => option.toLowerCase());
-    if (new Set(normalizedOptions).size !== normalizedOptions.length) {
+
+    if (new Set(validOptions.map((option) => option.toLowerCase())).size !== validOptions.length) {
       setPollValidationError('Each option must be unique.');
       return;
     }
 
-    const poll: Poll = {
-      id: Date.now(),
-      question: trimmedPollQuestion,
-      options: validOptions,
-      votes: Object.fromEntries(validOptions.map((option) => [option, []])),
-      createdBy: userId,
-    };
+    setCreatingPoll(true);
+    setPollValidationError(null);
 
-    setPolls((previous) => [poll, ...previous]);
-    setShowCreatePoll(false);
-    resetComposer();
+    try {
+      const response = await fetch(`/api/groups/${groupId}/polls`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: trimmedPollQuestion, options: validOptions }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error ?? 'Unable to create poll.');
+      }
+
+      const payload = (await response.json()) as { poll: GroupPollRecord | null };
+      const poll = payload.poll;
+      if (poll) {
+        setPolls((previous) => [poll, ...previous.filter((item) => item.id !== poll.id)]);
+      } else {
+        await fetchPolls();
+      }
+
+      setShowCreatePoll(false);
+      resetComposer();
+    } catch (createError) {
+      console.error('Failed to create poll', createError);
+      setPollValidationError(createError instanceof Error ? createError.message : 'Unable to create poll.');
+    } finally {
+      setCreatingPoll(false);
+    }
   };
 
-  const deletePoll = (pollId: number) => {
-    setPolls((previous) => previous.filter((poll) => poll.id !== pollId));
-    setUserVotes((previous) => {
-      const updated = { ...previous };
-      delete updated[pollId];
-      return updated;
-    });
+  const handleVote = async (poll: GroupPollRecord, optionId: string, isSelected: boolean) => {
+    setPendingVotePollId(poll.id);
+    try {
+      const response = await fetch(`/api/groups/${groupId}/polls/${poll.id}/vote`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ optionId: isSelected ? null : optionId }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error ?? 'Unable to save vote.');
+      }
+
+      const payload = (await response.json()) as { poll: GroupPollRecord | null };
+      const updated = payload.poll;
+      if (updated) {
+        setPolls((previous) => previous.map((item) => (item.id === updated.id ? updated : item)));
+      } else {
+        await fetchPolls();
+      }
+    } catch (voteError) {
+      console.error('Failed to save vote', voteError);
+      setError('Unable to save your vote. Please try again.');
+    } finally {
+      setPendingVotePollId(null);
+    }
+  };
+
+  const deletePoll = async (pollId: string) => {
+    setPendingDeletePollId(pollId);
+    try {
+      const response = await fetch(`/api/groups/${groupId}/polls/${pollId}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error ?? 'Unable to delete poll.');
+      }
+
+      setPolls((previous) => previous.filter((poll) => poll.id !== pollId));
+    } catch (deleteError) {
+      console.error('Failed to delete poll', deleteError);
+      setError('Unable to delete poll right now.');
+    } finally {
+      setPendingDeletePollId(null);
+    }
   };
 
   return (
     <section className="rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-sm backdrop-blur">
-      <div className="mb-4 flex items-center justify-between">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-medium text-slate-900">Quick polls</h2>
           <p className="text-sm text-slate-500">Light decisions without the group chat flood</p>
@@ -249,11 +284,11 @@ export default function QuickPolls({ userId }: QuickPollsProps) {
               </button>
             )}
             <button
-              onClick={createPoll}
+              onClick={() => void createPoll()}
               disabled={pollCreateDisabled}
               className="flex-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-medium text-white transition disabled:bg-slate-200 disabled:text-slate-400"
             >
-              Create
+              {creatingPoll ? 'Saving…' : 'Create'}
             </button>
             <button
               onClick={() => {
@@ -268,71 +303,89 @@ export default function QuickPolls({ userId }: QuickPollsProps) {
         </div>
       )}
 
-      <div className="space-y-4">
-        {polls.map((poll) => {
-          const totalVotes = poll.options.reduce(
-            (total, option) => total + (poll.votes[option]?.length ?? 0),
-            0
-          );
-          const vote = userVotes[poll.id];
+      {loading ? (
+        <div className="rounded-2xl border border-slate-200 bg-white/70 px-4 py-6 text-center text-sm text-slate-500">
+          <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" />
+          Loading polls…
+        </div>
+      ) : polls.length === 0 ? (
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 px-4 py-6 text-center text-sm text-slate-500">
+          No polls yet. Start one to gather a quick vote.
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {polls.map((poll) => {
+            const totalVotes = poll.options.reduce((total, option) => total + option.voters.length, 0);
 
-          return (
-            <div key={poll.id} className="rounded-2xl border border-slate-200 bg-white/70 p-4 shadow-sm">
-              <div className="mb-3 flex items-start justify-between gap-4">
-                <div className="text-sm font-semibold text-slate-900">{poll.question}</div>
-                {poll.createdBy === userId && (
-                  <button
-                    onClick={() => deletePoll(poll.id)}
-                    className="text-sm text-slate-400 transition hover:text-rose-500"
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                {poll.options.map((option) => {
-                  const votes = poll.votes[option]?.length ?? 0;
-                  const percentage = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
-                  const isSelected = vote === option;
-
-                  return (
+            return (
+              <div key={poll.id} className="rounded-2xl border border-slate-200 bg-white/70 p-4 shadow-sm">
+                <div className="mb-3 flex items-start justify-between gap-4">
+                  <div className="text-sm font-semibold text-slate-900">{poll.question}</div>
+                  {poll.createdBy === userId && (
                     <button
-                      key={option}
-                      onClick={() => handleVote(poll.id, option)}
-                      className={`relative w-full overflow-hidden rounded-xl border px-4 py-3 text-left text-sm transition ${
-                        isSelected
-                          ? 'border-slate-500 bg-slate-100/80'
-                          : 'border-slate-200 hover:border-slate-400 hover:bg-slate-100/60'
-                      }`}
+                      onClick={() => void deletePoll(poll.id)}
+                      disabled={pendingDeletePollId === poll.id}
+                      className="text-sm text-slate-400 transition hover:text-rose-500 disabled:cursor-not-allowed disabled:text-slate-300"
                     >
-                      <div
-                        className="absolute inset-y-0 left-0 bg-slate-200 transition"
-                        style={{ width: `${percentage}%` }}
-                        aria-hidden
-                      />
-                      <div className="relative flex items-center justify-between gap-4">
-                        <div className="flex items-center gap-2">
-                          {isSelected && <Check size={16} className="text-slate-700" />}
-                          <span className="font-medium text-slate-700">{option}</span>
-                        </div>
-                        <div className="flex items-center gap-2 text-xs text-slate-500">
-                          <span>{votes} {votes === 1 ? 'vote' : 'votes'}</span>
-                          <span>{percentage}%</span>
-                        </div>
-                      </div>
+                      {pendingDeletePollId === poll.id ? 'Removing…' : 'Remove'}
                     </button>
-                  );
-                })}
-              </div>
+                  )}
+                </div>
 
-              <div className="mt-2 text-xs text-slate-400">
-                {totalVotes} total {totalVotes === 1 ? 'vote' : 'votes'}
+                <div className="space-y-2">
+                  {poll.options.map((option) => {
+                    const votes = option.voters.length;
+                    const percentage = totalVotes > 0 ? Math.round((votes / totalVotes) * 100) : 0;
+                    const isSelected = option.voters.includes(userId);
+                    const isBusy = pendingVotePollId === poll.id;
+
+                    return (
+                      <button
+                        key={option.id}
+                        onClick={() => void handleVote(poll, option.id, isSelected)}
+                        disabled={isBusy}
+                        className={`relative w-full overflow-hidden rounded-xl border px-4 py-3 text-left text-sm transition ${
+                          isSelected
+                            ? 'border-slate-500 bg-slate-100/80'
+                            : 'border-slate-200 hover:border-slate-400 hover:bg-slate-100/60'
+                        } disabled:cursor-not-allowed disabled:opacity-75`}
+                      >
+                        <div
+                          className="absolute inset-y-0 left-0 bg-slate-200 transition"
+                          style={{ width: `${percentage}%` }}
+                          aria-hidden
+                        />
+                        <div className="relative flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-2">
+                            {isSelected && <Check size={16} className="text-slate-700" />}
+                            <span className="font-medium text-slate-700">{option.label}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-xs text-slate-500">
+                            <span>
+                              {votes} {votes === 1 ? 'vote' : 'votes'}
+                            </span>
+                            <span>{percentage}%</span>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-2 text-xs text-slate-400">
+                  {totalVotes} total {totalVotes === 1 ? 'vote' : 'votes'}
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
+      )}
+
+      {error && (
+        <p className="mt-4 text-xs text-rose-500">
+          {error}
+        </p>
+      )}
     </section>
   );
 }
