@@ -119,6 +119,8 @@ export default function Dashboard({
   const [previewAlt, setPreviewAlt] = useState('');
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
+  const libraryInputRef = useRef<HTMLInputElement | null>(null);
+  const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const [signingOut, setSigningOut] = useState(false);
 
   const [memberStatuses, setMemberStatuses] = useState<Record<string, MemberStatus>>({});
@@ -775,11 +777,39 @@ export default function Dashboard({
                           <p className="mt-1 text-xs text-slate-500">
                             Attach a snapshot to go with any quick or custom update.
                           </p>
-                          <label className="mt-3 flex w-full cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 transition hover:border-slate-400 hover:bg-slate-100/60">
-                            <span className="mb-2 text-lg">📷</span>
-                            <span>Choose image</span>
-                            <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-                          </label>
+                      <div className="mt-3 grid grid-cols-1 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => libraryInputRef.current?.click()}
+                          className="flex w-full flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 transition hover:border-slate-400 hover:bg-slate-100/60"
+                        >
+                          <span className="mb-2 text-lg">🖼️</span>
+                          <span>Choose from library</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => cameraInputRef.current?.click()}
+                          className="flex w-full flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 transition hover:border-slate-400 hover:bg-slate-100/60"
+                        >
+                          <span className="mb-2 text-lg">📷</span>
+                          <span>Take photo</span>
+                        </button>
+                        <input
+                          ref={libraryInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={handleImageUpload}
+                        />
+                        <input
+                          ref={cameraInputRef}
+                          type="file"
+                          accept="image/*"
+                          capture="environment"
+                          className="hidden"
+                          onChange={handleImageUpload}
+                        />
+                      </div>
                           {statusImage && (
                             <div className="mt-3 space-y-2">
                               <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
@@ -818,7 +848,7 @@ export default function Dashboard({
                         <CircleIcon aria-hidden className="lucide lucide-circle h-[18px] w-[18px]" />
                         Circle
                       </h2>
-                      <p className="text-sm text-slate-500">Check ins from everyone in {activeGroup.name}</p>
+                      <p className="text-sm text-slate-500">Check ins in {activeGroup.name}</p>
                     </div>
                     <div className="flex items-center gap-2">
                       {isOwner ? (
