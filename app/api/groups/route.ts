@@ -1,21 +1,17 @@
 import { NextResponse } from 'next/server';
-import { getSupabaseRouteHandlerClient } from '@/lib/supabaseServerClient';
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import type { CreateGroupPayload, GroupRecord } from '@/types/groups';
 import { mapGroupRecord } from '@/lib/groups/mapGroupRecord';
 import { GROUP_WITH_MEMBERS_SELECT } from '@/lib/groups/select';
+import { getAuthenticatedUser } from '@/lib/auth/getAuthenticatedUser';
 
 export async function GET() {
-  const supabase = await getSupabaseRouteHandlerClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (!session) {
+  const auth = await getAuthenticatedUser();
+  if (!auth) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const userId = session.user.id;
+  const userId = auth.user.id;
   const supabaseAdmin = await getSupabaseAdmin();
 
   const { data, error } = await supabaseAdmin
@@ -49,21 +45,18 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const supabase = await getSupabaseRouteHandlerClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (!session) {
+  const auth = await getAuthenticatedUser();
+  if (!auth) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
+  const userId = auth.user.id;
   const body = (await request.json()) as Partial<CreateGroupPayload>;
   const name = body.name?.trim();
   const preset = body.preset?.trim() ?? 'custom';
   const icon = body.icon?.trim();
   const memberIds = Array.isArray(body.memberIds)
-    ? body.memberIds.filter((value): value is string => typeof value === 'string' && value !== session.user.id)
+    ? body.memberIds.filter((value): value is string => typeof value === 'string' && value !== userId)
     : [];
 
   if (!name || !icon) {
@@ -78,7 +71,7 @@ export async function POST(request: Request) {
       name,
       icon,
       preset,
-      owner_id: session.user.id,
+      owner_id: userId,
     })
     .select(GROUP_WITH_MEMBERS_SELECT)
     .single();
@@ -91,15 +84,15 @@ export async function POST(request: Request) {
   const memberRows = [
     {
       group_id: groupData.id,
-      user_id: session.user.id,
+      user_id: userId,
       role: 'owner',
-      invited_by: session.user.id,
+      invited_by: userId,
     },
     ...memberIds.map((userId) => ({
       group_id: groupData.id,
       user_id: userId,
       role: 'member',
-      invited_by: session.user.id,
+      invited_by: userId,
     })),
   ];
 

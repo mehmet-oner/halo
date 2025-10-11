@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseRouteHandlerClient } from '@/lib/supabaseServerClient';
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { GROUP_WITH_MEMBERS_SELECT } from '@/lib/groups/select';
 import { mapGroupRecord } from '@/lib/groups/mapGroupRecord';
+import { getAuthenticatedUser } from '@/lib/auth/getAuthenticatedUser';
 
 export async function GET(
   _request: NextRequest,
@@ -12,11 +12,6 @@ export async function GET(
   if (!groupId) {
     return NextResponse.json({ error: 'Group id is required.' }, { status: 400 });
   }
-
-  const supabase = await getSupabaseRouteHandlerClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
 
   const supabaseAdmin = await getSupabaseAdmin();
 
@@ -31,7 +26,8 @@ export async function GET(
   }
 
   const mapped = mapGroupRecord(groupData);
-  const userId = session?.user.id ?? null;
+  const auth = await getAuthenticatedUser();
+  const userId = auth?.user.id ?? null;
   const isMember = userId ? mapped.members.some((member) => member.id === userId) : false;
 
   return NextResponse.json({

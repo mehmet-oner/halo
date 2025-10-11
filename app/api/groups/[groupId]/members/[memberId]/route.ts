@@ -1,17 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseRouteHandlerClient } from '@/lib/supabaseServerClient';
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
+import { getAuthenticatedUser } from '@/lib/auth/getAuthenticatedUser';
 
 export async function DELETE(
   _request: NextRequest,
   context: { params: Promise<{ groupId: string; memberId: string }> }
 ) {
-  const supabase = await getSupabaseRouteHandlerClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (!session) {
+  const auth = await getAuthenticatedUser();
+  if (!auth) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -21,7 +17,7 @@ export async function DELETE(
     return NextResponse.json({ error: 'Group id and member id are required.' }, { status: 400 });
   }
 
-  if (memberId !== session.user.id) {
+  if (memberId !== auth.user.id) {
     return NextResponse.json({ error: 'You can only remove yourself from a group.' }, { status: 403 });
   }
 

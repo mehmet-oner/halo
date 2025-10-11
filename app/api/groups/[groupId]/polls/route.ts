@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseRouteHandlerClient } from '@/lib/supabaseServerClient';
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { isMemberOfGroup } from '@/lib/groups/isGroupMember';
 import { GROUP_POLL_WITH_RELATIONS_SELECT } from '@/lib/polls/select';
 import { mapPollRecord } from '@/lib/polls/mapPollRecord';
+import { getAuthenticatedUser } from '@/lib/auth/getAuthenticatedUser';
 
 type CreatePollBody = {
   question?: string;
@@ -32,18 +32,14 @@ export async function GET(
   _request: NextRequest,
   context: { params: Promise<{ groupId: string }> }
 ) {
-  const supabase = await getSupabaseRouteHandlerClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (!session) {
+  const auth = await getAuthenticatedUser();
+  if (!auth) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const { groupId } = await context.params;
 
-  const isMember = await isMemberOfGroup(groupId, session.user.id);
+  const isMember = await isMemberOfGroup(groupId, auth.user.id);
   if (!isMember) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
@@ -61,18 +57,14 @@ export async function POST(
   request: NextRequest,
   context: { params: Promise<{ groupId: string }> }
 ) {
-  const supabase = await getSupabaseRouteHandlerClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (!session) {
+  const auth = await getAuthenticatedUser();
+  if (!auth) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const { groupId } = await context.params;
 
-  const isMember = await isMemberOfGroup(groupId, session.user.id);
+  const isMember = await isMemberOfGroup(groupId, auth.user.id);
   if (!isMember) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
@@ -107,7 +99,7 @@ export async function POST(
       .insert({
         group_id: groupId,
         question,
-        created_by: session.user.id,
+        created_by: auth.user.id,
       })
       .select(GROUP_POLL_WITH_RELATIONS_SELECT)
       .single();

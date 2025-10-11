@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { createServerComponentClient } from "@supabase/auth-helpers-nextjs";
 import type { Session } from "@supabase/auth-helpers-nextjs";
 import SupabaseProvider from "@/components/providers/SupabaseProvider";
+import { getAuthenticatedUser } from "@/lib/auth/getAuthenticatedUser";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -16,22 +17,12 @@ export default async function RootLayout({
   children: React.ReactNode;
 }>) {
   const supabase = createServerComponentClient({ cookies });
-  const [{ data: sessionData }, userResult] = await Promise.all([
-    supabase.auth.getSession(),
-    supabase.auth.getUser(),
-  ]);
+  const auth = await getAuthenticatedUser({
+    client: supabase,
+    requireSession: true,
+  });
 
-  const session = sessionData.session;
-  let initialSession: Session | null = null;
-
-  if (userResult.error) {
-    console.warn("Supabase getUser failed:", userResult.error.message);
-  } else if (session && userResult.data.user) {
-    initialSession = {
-      ...session,
-      user: userResult.data.user,
-    } as Session;
-  }
+  const initialSession: Session | null = auth?.session ?? null;
 
   return (
     <html lang="en">

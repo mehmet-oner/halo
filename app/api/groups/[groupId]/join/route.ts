@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseRouteHandlerClient } from '@/lib/supabaseServerClient';
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { GROUP_WITH_MEMBERS_SELECT } from '@/lib/groups/select';
 import { mapGroupRecord } from '@/lib/groups/mapGroupRecord';
+import { getAuthenticatedUser } from '@/lib/auth/getAuthenticatedUser';
 
 export async function POST(
   _request: NextRequest,
@@ -13,12 +13,8 @@ export async function POST(
     return NextResponse.json({ error: 'Group id is required.' }, { status: 400 });
   }
 
-  const supabase = await getSupabaseRouteHandlerClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (!session) {
+  const auth = await getAuthenticatedUser();
+  if (!auth) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -37,9 +33,9 @@ export async function POST(
   const { error: upsertError } = await supabaseAdmin.from('group_members').upsert(
     {
       group_id: groupId,
-      user_id: session.user.id,
+      user_id: auth.user.id,
       role: 'member',
-      invited_by: session.user.id,
+      invited_by: auth.user.id,
     },
     { onConflict: 'group_id,user_id' }
   );

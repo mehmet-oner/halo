@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseRouteHandlerClient } from '@/lib/supabaseServerClient';
 import { isMemberOfGroup } from '@/lib/groups/isGroupMember';
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import { GROUP_POLL_WITH_RELATIONS_SELECT } from '@/lib/polls/select';
 import { mapPollRecord } from '@/lib/polls/mapPollRecord';
+import { getAuthenticatedUser } from '@/lib/auth/getAuthenticatedUser';
 
 type VoteBody = {
   optionId?: string | null;
@@ -28,18 +28,14 @@ export async function POST(
   request: NextRequest,
   context: { params: Promise<{ groupId: string; pollId: string }> }
 ) {
-  const supabase = await getSupabaseRouteHandlerClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (!session) {
+  const auth = await getAuthenticatedUser();
+  if (!auth) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const { groupId, pollId } = await context.params;
 
-  const isMember = await isMemberOfGroup(groupId, session.user.id);
+  const isMember = await isMemberOfGroup(groupId, auth.user.id);
   if (!isMember) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
@@ -63,7 +59,7 @@ export async function POST(
       .from('group_poll_votes')
       .delete()
       .eq('poll_id', pollId)
-      .eq('user_id', session.user.id);
+      .eq('user_id', auth.user.id);
 
     if (deleteError) {
       throw deleteError;
@@ -73,7 +69,7 @@ export async function POST(
       const { error: insertError } = await supabaseAdmin.from('group_poll_votes').insert({
         poll_id: pollId,
         option_id: optionId,
-        user_id: session.user.id,
+        user_id: auth.user.id,
       });
 
       if (insertError) {

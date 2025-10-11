@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseRouteHandlerClient } from '@/lib/supabaseServerClient';
 import { getSupabaseAdmin } from '@/lib/supabaseAdmin';
 import type { GroupStatusRecord } from '@/types/groups';
 import { isMemberOfGroup } from '@/lib/groups/isGroupMember';
+import { getAuthenticatedUser } from '@/lib/auth/getAuthenticatedUser';
 
 const STATUS_SELECT = 'group_id, user_id, status, emoji, image, expires_at, updated_at';
 
@@ -37,18 +37,14 @@ export async function GET(
   _request: NextRequest,
   context: { params: Promise<{ groupId: string }> }
 ) {
-  const supabase = await getSupabaseRouteHandlerClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (!session) {
+  const auth = await getAuthenticatedUser();
+  if (!auth) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const { groupId } = await context.params;
 
-  const isMember = await isMemberOfGroup(groupId, session.user.id);
+  const isMember = await isMemberOfGroup(groupId, auth.user.id);
 
   if (!isMember) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -77,12 +73,8 @@ export async function POST(
   request: NextRequest,
   context: { params: Promise<{ groupId: string }> }
 ) {
-  const supabase = await getSupabaseRouteHandlerClient();
-  const {
-    data: { session },
-  } = await supabase.auth.getSession();
-
-  if (!session) {
+  const auth = await getAuthenticatedUser();
+  if (!auth) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
@@ -100,7 +92,7 @@ export async function POST(
     return NextResponse.json({ error: 'Status text is required.' }, { status: 400 });
   }
 
-  const isMember = await isMemberOfGroup(groupId, session.user.id);
+  const isMember = await isMemberOfGroup(groupId, auth.user.id);
 
   if (!isMember) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -110,7 +102,7 @@ export async function POST(
 
   const payload = {
     group_id: groupId,
-    user_id: session.user.id,
+    user_id: auth.user.id,
     status: statusText,
     emoji,
     image,
