@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, Loader2, MessageCircle, Plus } from 'lucide-react';
+import { Check, Loader2, MessageCircle, Plus, Trash2 } from 'lucide-react';
 import type { GroupPollRecord } from '@/types/polls';
 
 type QuickPollsProps = {
@@ -10,6 +10,7 @@ type QuickPollsProps = {
 };
 
 const MAX_OPTIONS = 6;
+const POLL_INTERVAL_MS = 5_000;
 
 const createEmptyOptions = () => ['', ''];
 
@@ -62,9 +63,13 @@ export default function QuickPolls({ userId, groupId }: QuickPollsProps) {
     setPollValidationError(null);
   };
 
-  const fetchPolls = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const fetchPolls = useCallback(
+    async (options?: { background?: boolean }) => {
+      const background = options?.background ?? false;
+      if (!background) {
+        setLoading(true);
+        setError(null);
+      }
     try {
       const response = await fetch(`/api/groups/${groupId}/polls`, { cache: 'no-store' });
       if (!response.ok) {
@@ -78,14 +83,36 @@ export default function QuickPolls({ userId, groupId }: QuickPollsProps) {
       console.error('Failed to fetch polls', fetchError);
       setError('Unable to load polls right now.');
       setPolls([]);
+      if (!background) {
+        setLoading(false);
+      }
     } finally {
-      setLoading(false);
+      if (!background) {
+        setLoading(false);
+      }
     }
-  }, [groupId]);
+  },
+    [groupId]
+  );
 
   useEffect(() => {
     void fetchPolls();
   }, [fetchPolls]);
+
+  useEffect(() => {
+    const poll = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
+      if (creatingPoll || pendingVotePollId || pendingDeletePollId) {
+        return;
+      }
+      void fetchPolls({ background: true });
+    };
+
+    const interval = window.setInterval(poll, POLL_INTERVAL_MS);
+    return () => window.clearInterval(interval);
+  }, [creatingPoll, fetchPolls, pendingDeletePollId, pendingVotePollId]);
 
   useEffect(() => {
     if (!pollValidationError) return;
@@ -318,18 +345,35 @@ export default function QuickPolls({ userId, groupId }: QuickPollsProps) {
         <div className="space-y-4">
           {polls.map((poll) => {
             const totalVotes = poll.options.reduce((total, option) => total + option.voters.length, 0);
+            const createdAtDate = new Date(poll.createdAt);
+            const createdAtLabel = Number.isNaN(createdAtDate.getTime())
+              ? null
+              : createdAtDate.toLocaleDateString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                });
 
             return (
               <div key={poll.id} className="rounded-2xl border border-slate-200 bg-white/70 p-4 shadow-sm">
                 <div className="mb-3 flex items-start justify-between gap-4">
-                  <div className="text-sm font-semibold text-slate-900">{poll.question}</div>
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">{poll.question}</div>
+                    {createdAtLabel && (
+                      <p className="text-xs text-slate-400">{createdAtLabel}</p>
+                    )}
+                  </div>
                   {poll.createdBy === userId && (
                     <button
                       onClick={() => void deletePoll(poll.id)}
                       disabled={pendingDeletePollId === poll.id}
-                      className="text-sm text-slate-400 transition hover:text-rose-500 disabled:cursor-not-allowed disabled:text-slate-300"
+                      className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-slate-400 transition hover:border-rose-400 hover:bg-rose-50 hover:text-rose-600 disabled:cursor-not-allowed disabled:opacity-60"
+                      aria-label="Delete poll"
                     >
-                      {pendingDeletePollId === poll.id ? 'Removing…' : 'Remove'}
+                      {pendingDeletePollId === poll.id ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 size={14} />
+                      )}
                     </button>
                   )}
                 </div>

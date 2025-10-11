@@ -812,7 +812,7 @@ export default function Dashboard({ userId, displayName, email, onSignOut }: Das
             </section>
 
             <QuickPolls key={`polls-${activeGroup.id}`} userId={userId} groupId={activeGroup.id} />
-            <GroupTodos key={`todos-${activeGroup.id}`} userId={userId} groupId={activeGroup.id} />
+            <GroupTodos key={`todos-${activeGroup.id}`} groupId={activeGroup.id} />
           </>
         )}
       </main>
