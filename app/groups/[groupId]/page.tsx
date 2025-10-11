@@ -158,7 +158,7 @@ export default function GroupInvitePage(props: { params: Promise<{ groupId: stri
             />
             <div>
               <p className="text-sm font-medium text-slate-700">Halo</p>
-              <p className="text-xs text-slate-500">Quiet status sharing for close circles</p>
+              <p className="text-xs text-slate-500">Status sharing for close circles</p>
             </div>
           </div>
           <p className="text-sm text-slate-600">

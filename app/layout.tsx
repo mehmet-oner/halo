@@ -7,7 +7,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Halo",
-  description: "Quite status sharing for close circles",
+  description: "Status sharing for close circles",
 };
 
 export default async function RootLayout({

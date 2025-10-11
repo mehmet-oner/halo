@@ -133,11 +133,11 @@ export default function Dashboard({ userId, displayName, email, onSignOut }: Das
   const [signingOut, setSigningOut] = useState(false);
 
   const [memberStatuses, setMemberStatuses] = useState<Record<string, MemberStatus>>({});
-  const [statusTimeout, setStatusTimeout] = useState<string>('1h');
+  const [statusTimeout, setStatusTimeout] = useState<string>('4h');
   const [showStatusPicker, setShowStatusPicker] = useState(false);
   const [showCustomStatus, setShowCustomStatus] = useState(false);
   const [customMessage, setCustomMessage] = useState('');
-  const [customImage, setCustomImage] = useState<string | null>(null);
+  const [statusImage, setStatusImage] = useState<string | null>(null);
 
   const [polls, setPolls] = useState<Poll[]>(defaultPolls);
   const [userVotes, setUserVotes] = useState<Record<number, string>>({});
@@ -369,7 +369,7 @@ export default function Dashboard({ userId, displayName, email, onSignOut }: Das
     const reader = new FileReader();
     reader.onloadend = () => {
       if (typeof reader.result === 'string') {
-        setCustomImage(reader.result);
+        setStatusImage(reader.result);
       }
     };
     reader.readAsDataURL(file);
@@ -406,7 +406,7 @@ export default function Dashboard({ userId, displayName, email, onSignOut }: Das
       await submitStatus({
         status: status.label,
         emoji: status.emoji,
-        image: null,
+        image: statusImage,
         expiresAt,
       });
     } catch (error) {
@@ -415,14 +415,14 @@ export default function Dashboard({ userId, displayName, email, onSignOut }: Das
 
     setShowStatusPicker(false);
     setShowCustomStatus(false);
-    setStatusTimeout('1h');
+    setStatusTimeout('4h');
     setCustomMessage('');
-    setCustomImage(null);
+    setStatusImage(null);
   };
 
   const saveCustomStatus = async () => {
     if (!activeGroup) return;
-    if (!customMessage.trim() && !customImage) return;
+    if (!customMessage.trim() && !statusImage) return;
 
     const expiresAt = getExpirationTime(statusTimeout);
 
@@ -430,7 +430,7 @@ export default function Dashboard({ userId, displayName, email, onSignOut }: Das
       await submitStatus({
         status: customMessage.trim() || 'Custom status',
         emoji: '💬',
-        image: customImage,
+        image: statusImage,
         expiresAt,
       });
     } catch (error) {
@@ -438,10 +438,10 @@ export default function Dashboard({ userId, displayName, email, onSignOut }: Das
     }
 
     setCustomMessage('');
-    setCustomImage(null);
     setShowCustomStatus(false);
     setShowStatusPicker(false);
-    setStatusTimeout('1h');
+    setStatusTimeout('4h');
+    setStatusImage(null);
   };
 
   const handleVote = (pollId: number, option: string) => {
@@ -648,7 +648,7 @@ export default function Dashboard({ userId, displayName, email, onSignOut }: Das
             />
             <div>
               <h1 className="text-xl font-semibold tracking-tight text-slate-900">Halo</h1>
-              <p className="text-sm text-slate-500">Quiet status sharing for close circles</p>
+              <p className="text-sm text-slate-500">Status sharing for close circles</p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -772,13 +772,12 @@ export default function Dashboard({ userId, displayName, email, onSignOut }: Das
                     <IconForActiveGroup size={18} />
                     Quick status
                   </h2>
-                  <p className="text-sm text-slate-500">Share where you are or what you are up to</p>
                 </div>
                 <button
                   onClick={() => setShowStatusPicker((previous) => !previous)}
                   className="flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100/70"
                 >
-                  {userStatus ? 'Update status' : 'Post status'}
+                  {userStatus ? 'Update' : 'Post'}
                 </button>
               </div>
 
@@ -795,89 +794,106 @@ export default function Dashboard({ userId, displayName, email, onSignOut }: Das
               )}
 
               {showStatusPicker && (
-                <div className="space-y-4 rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-inner">
-                  <div>
-                    <p className="mb-2 text-sm font-semibold text-slate-700">Suggested</p>
-                    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                      {quickStatuses.map((status) => (
-                    <button
-                      key={status.label}
-                      onClick={() => void updateStatus(status)}
-                          className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm transition hover:border-slate-400 hover:bg-slate-100/70"
-                        >
-                          <span className="text-lg">{status.emoji}</span>
-                          <span className="text-slate-700">{status.label}</span>
-                        </button>
-                      ))}
+                <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-inner md:flex-row">
+                  <div className="flex-1 space-y-4">
+                    <div>
+                      <p className="mb-2 text-sm font-semibold text-slate-700">Suggested</p>
+                      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                        {quickStatuses.map((status) => (
+                          <button
+                            key={status.label}
+                            onClick={() => void updateStatus(status)}
+                            className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm transition hover:border-slate-400 hover:bg-slate-100/70"
+                          >
+                            <span className="text-lg">{status.emoji}</span>
+                            <span className="text-slate-700">{status.label}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <button
+                        onClick={() => setShowCustomStatus((previous) => !previous)}
+                        className="flex w-full items-center justify-between rounded-xl border border-dashed border-slate-300 px-4 py-3 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100/60"
+                      >
+                        <span>Create custom status</span>
+                        <ChevronDown
+                          size={16}
+                          className={`text-slate-400 transition ${showCustomStatus ? 'rotate-180' : ''}`}
+                        />
+                      </button>
+
+                      {showCustomStatus && (
+                        <div className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-white/70 p-4">
+                          <textarea
+                            value={customMessage}
+                            onChange={(event) => setCustomMessage(event.target.value)}
+                            placeholder="Write a short update..."
+                            rows={3}
+                            className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400/60"
+                          />
+
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => void saveCustomStatus()}
+                              disabled={!customMessage.trim() && !statusImage}
+                              className="flex-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition disabled:bg-slate-200 disabled:text-slate-400"
+                            >
+                              Save
+                            </button>
+                            <button
+                              onClick={() => {
+                                setShowCustomStatus(false);
+                                setCustomMessage('');
+                              }}
+                              className="rounded-xl px-4 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100/70"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
-                  <div>
-                    <button
-                      onClick={() => setShowCustomStatus((previous) => !previous)}
-                      className="flex w-full items-center justify-between rounded-xl border border-dashed border-slate-300 px-4 py-3 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100/60"
-                    >
-                      <span>Create custom status</span>
-                      <ChevronDown
-                        size={16}
-                        className={`text-slate-400 transition ${showCustomStatus ? 'rotate-180' : ''}`}
-                      />
-                    </button>
-
-                    {showCustomStatus && (
-                      <div className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-white/70 p-4">
-                        <textarea
-                          value={customMessage}
-                          onChange={(event) => setCustomMessage(event.target.value)}
-                          placeholder="Write a short update..."
-                          rows={3}
-                          className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400/60"
-                        />
-
-                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                          <label className="flex h-full w-full cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 transition hover:border-slate-400 hover:bg-slate-100/60">
-                            <span className="mb-2 text-lg">📷</span>
-                            <span>Add photo</span>
-                            <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-                          </label>
-                          <div className="space-y-2">
-                            <p className="text-xs font-medium text-slate-500">Status expiry</p>
-                            {renderStatusExpirySelect(statusTimeout, setStatusTimeout)}
-                          </div>
-                        </div>
-
-                        {customImage && (
-                          <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                  <div className="flex flex-col gap-5 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 md:max-w-xs md:self-start">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">Add photo</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        Attach a snapshot to go with any quick or custom update.
+                      </p>
+                      <label className="mt-3 flex w-full cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 transition hover:border-slate-400 hover:bg-slate-100/60">
+                        <span className="mb-2 text-lg">📷</span>
+                        <span>Choose image</span>
+                        <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+                      </label>
+                      {statusImage && (
+                        <div className="mt-3 space-y-2">
+                          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
                             <img
-                              src={customImage}
-                              alt="Custom status preview"
+                              src={statusImage}
+                              alt="Status photo preview"
                               className="max-h-60 w-full object-contain"
                             />
                           </div>
-                        )}
-
-                        <div className="flex gap-2">
-                      <button
-                        onClick={() => void saveCustomStatus()}
-                            disabled={!customMessage.trim() && !customImage}
-                            className="flex-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition disabled:bg-slate-200 disabled:text-slate-400"
-                          >
-                            Save
-                          </button>
                           <button
-                            onClick={() => {
-                              setShowCustomStatus(false);
-                              setCustomMessage('');
-                              setCustomImage(null);
-                            }}
-                            className="rounded-xl px-4 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100/70"
+                            type="button"
+                            onClick={() => setStatusImage(null)}
+                            className="w-full rounded-xl px-4 py-2 text-xs font-medium text-slate-500 transition hover:bg-white"
                           >
-                            Cancel
+                            Remove photo
                           </button>
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
+
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">Status expiry</p>
+                      <p className="mt-1 text-xs text-slate-500">Choose how long your update stays visible.</p>
+                      <div className="mt-3">{renderStatusExpirySelect(statusTimeout, setStatusTimeout)}</div>
+                    </div>
                   </div>
                 </div>
               )}
