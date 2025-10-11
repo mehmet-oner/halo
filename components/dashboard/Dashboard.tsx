@@ -770,6 +770,11 @@ export default function Dashboard({
                           )}
                         </div>
                       </div>
+                      
+                      <div>
+                          <p className="text-sm font-semibold text-slate-700">Status expiry</p>
+                          <div className="mt-3">{renderStatusExpirySelect(statusTimeout, setStatusTimeout)}</div>
+                      </div>
 
                       <div className="flex flex-col gap-5 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 md:max-w-xs md:self-start">
                         <div>
@@ -831,11 +836,6 @@ export default function Dashboard({
                           )}
                         </div>
 
-                        <div>
-                          <p className="text-sm font-semibold text-slate-700">Status expiry</p>
-                          <p className="mt-1 text-xs text-slate-500">Choose how long your update stays visible.</p>
-                          <div className="mt-3">{renderStatusExpirySelect(statusTimeout, setStatusTimeout)}</div>
-                        </div>
                       </div>
                     </div>
                   )}
