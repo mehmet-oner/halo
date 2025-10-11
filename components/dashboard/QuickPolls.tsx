@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, Loader2, Plus } from 'lucide-react';
+import { Check, Loader2, MessageCircle, Plus } from 'lucide-react';
 import type { GroupPollRecord } from '@/types/polls';
 
 type QuickPollsProps = {
@@ -217,7 +217,10 @@ export default function QuickPolls({ userId, groupId }: QuickPollsProps) {
     <section className="rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-sm backdrop-blur">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="text-lg font-medium text-slate-900">Quick polls</h2>
+          <h2 className="flex items-center gap-2 text-lg font-medium text-slate-900">
+            <MessageCircle aria-hidden className="lucide lucide-message-circle h-[18px] w-[18px]" />
+            Group polls
+          </h2>
         </div>
         <button
           onClick={() => {

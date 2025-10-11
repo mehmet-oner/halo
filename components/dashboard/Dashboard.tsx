@@ -11,7 +11,7 @@ import {
 } from 'react';
 import { useSupabaseClient } from '@supabase/auth-helpers-react';
 import type { LucideIcon } from 'lucide-react';
-import { ChevronDown, Home as HomeIcon, Loader2, MessageCircle, Plus, Users, X } from 'lucide-react';
+import { ChevronDown, Circle as CircleIcon, Home as HomeIcon, Loader2, MessageCircle, Plus, Users, X } from 'lucide-react';
 import { useGroups } from '@/components/dashboard/useGroups';
 import CreateGroupDialog from '@/components/dashboard/CreateGroupDialog';
 import InviteMembersDialog from '@/components/dashboard/InviteMembersDialog';
@@ -646,7 +646,7 @@ export default function Dashboard({ userId, displayName, email, onSignOut }: Das
                 <div>
                   <h2 className="flex items-center gap-2 text-lg font-medium text-slate-900">
                     <IconForActiveGroup size={18} />
-                    Quick status
+                    Status
                   </h2>
                 </div>
                 <button
@@ -778,7 +778,10 @@ export default function Dashboard({ userId, displayName, email, onSignOut }: Das
             <section className="rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-sm backdrop-blur">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-lg font-medium text-slate-900">Circle</h2>
+                  <h2 className="flex items-center gap-2 text-lg font-medium text-slate-900">
+                    <CircleIcon aria-hidden className="lucide lucide-circle h-[18px] w-[18px]" />
+                    Circle
+                  </h2>
                   <p className="text-sm text-slate-500">Check ins from everyone in {activeGroup.name}</p>
                 </div>
                 <div className="flex items-center gap-2">
