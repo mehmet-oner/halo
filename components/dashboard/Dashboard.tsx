@@ -119,8 +119,8 @@ export default function Dashboard({
   const [previewAlt, setPreviewAlt] = useState('');
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
-  const libraryInputRef = useRef<HTMLInputElement | null>(null);
-  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+  const photoInputRef = useRef<HTMLInputElement | null>(null);
+  const imageReaderRef = useRef<FileReader | null>(null);
   const [signingOut, setSigningOut] = useState(false);
 
   const [memberStatuses, setMemberStatuses] = useState<Record<string, MemberStatus>>({});
@@ -129,6 +129,20 @@ export default function Dashboard({
   const [showCustomStatus, setShowCustomStatus] = useState(false);
   const [customMessage, setCustomMessage] = useState('');
   const [statusImage, setStatusImage] = useState<string | null>(null);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const resetCustomStatusForm = () => {
+    setCustomMessage('');
+    setStatusImage(null);
+    setIsUploadingImage(false);
+    if (photoInputRef.current) {
+      photoInputRef.current.value = '';
+      photoInputRef.current.removeAttribute('capture');
+    }
+    if (imageReaderRef.current) {
+      imageReaderRef.current.abort();
+      imageReaderRef.current = null;
+    }
+  };
 
   const [leavingGroup, setLeavingGroup] = useState(false);
 
@@ -363,15 +377,53 @@ export default function Dashboard({
 
   const handleImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (!file) return;
+    if (!file) {
+      photoInputRef.current?.removeAttribute('capture');
+      return;
+    }
+
+    if (imageReaderRef.current) {
+      imageReaderRef.current.abort();
+      imageReaderRef.current = null;
+    }
+
+    setStatusImage(null);
+    setIsUploadingImage(true);
 
     const reader = new FileReader();
+    imageReaderRef.current = reader;
+    reader.onerror = () => {
+      setIsUploadingImage(false);
+      imageReaderRef.current = null;
+      photoInputRef.current?.removeAttribute('capture');
+    };
+    reader.onabort = () => {
+      setIsUploadingImage(false);
+      imageReaderRef.current = null;
+      photoInputRef.current?.removeAttribute('capture');
+    };
     reader.onloadend = () => {
-      if (typeof reader.result === 'string') {
+      if (typeof reader.result === 'string' && !reader.error) {
         setStatusImage(reader.result);
       }
+      setIsUploadingImage(false);
+      imageReaderRef.current = null;
+      photoInputRef.current?.removeAttribute('capture');
     };
     reader.readAsDataURL(file);
+    event.target.value = '';
+  };
+
+  const triggerPhotoPicker = (mode: 'camera' | 'library') => {
+    const input = photoInputRef.current;
+    if (!input) return;
+    input.value = '';
+    if (mode === 'camera') {
+      input.setAttribute('capture', 'environment');
+    } else {
+      input.removeAttribute('capture');
+    }
+    input.click();
   };
 
   const submitStatus = useCallback(
@@ -405,22 +457,22 @@ export default function Dashboard({
       await submitStatus({
         status: status.label,
         emoji: status.emoji,
-        image: statusImage,
+        image: null,
         expiresAt,
       });
     } catch (error) {
       console.error('Failed to post status', error);
     }
 
+    resetCustomStatusForm();
     setShowStatusPicker(false);
     setShowCustomStatus(false);
     setStatusTimeout('4h');
-    setCustomMessage('');
-    setStatusImage(null);
   };
 
   const saveCustomStatus = async () => {
     if (!activeGroup) return;
+    if (isUploadingImage) return;
     if (!customMessage.trim() && !statusImage) return;
 
     const expiresAt = getExpirationTime(statusTimeout);
@@ -436,11 +488,10 @@ export default function Dashboard({
       console.error('Failed to post custom status', error);
     }
 
-    setCustomMessage('');
+    resetCustomStatusForm();
     setShowCustomStatus(false);
     setShowStatusPicker(false);
     setStatusTimeout('4h');
-    setStatusImage(null);
   };
 
   const renderStatusExpirySelect = (value: string, onChange: (next: string) => void) => (
@@ -728,7 +779,14 @@ export default function Dashboard({
 
                         <div>
                           <button
-                            onClick={() => setShowCustomStatus((previous) => !previous)}
+                            onClick={() =>
+                              setShowCustomStatus((previous) => {
+                                if (previous) {
+                                  resetCustomStatusForm();
+                                }
+                                return !previous;
+                              })
+                            }
                             className="flex w-full items-center justify-between rounded-xl border border-dashed border-slate-300 px-4 py-3 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100/60"
                           >
                             <span>Create custom status</span>
@@ -739,7 +797,7 @@ export default function Dashboard({
                           </button>
 
                           {showCustomStatus && (
-                            <div className="mt-4 space-y-3 rounded-xl border border-slate-200 bg-white/70 p-4">
+                            <div className="mt-4 space-y-4 rounded-xl border border-slate-200 bg-white/70 p-4">
                               <textarea
                                 value={customMessage}
                                 onChange={(event) => setCustomMessage(event.target.value)}
@@ -748,18 +806,79 @@ export default function Dashboard({
                                 className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400/60"
                               />
 
+                              <div className="space-y-3">
+                                <div>
+                                  <p className="text-sm font-semibold text-slate-700">Add photo</p>
+                                  <p className="mt-1 text-xs text-slate-500">
+                                    Attach a snapshot to pair with your custom update.
+                                  </p>
+                                </div>
+                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2">
+                                  <button
+                                    type="button"
+                                    onClick={() => triggerPhotoPicker('library')}
+                                    className="flex w-full flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 transition hover:border-slate-400 hover:bg-slate-100/60"
+                                  >
+                                    <span className="mb-2 text-lg">🖼️</span>
+                                    <span className="font-medium text-slate-600">Choose from library</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => triggerPhotoPicker('camera')}
+                                    className="flex w-full flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 transition hover:border-slate-400 hover:bg-slate-100/60"
+                                  >
+                                    <span className="mb-2 text-lg">📸</span>
+                                    <span className="font-medium text-slate-600">Take photo</span>
+                                  </button>
+                                </div>
+                                <input
+                                  ref={photoInputRef}
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  onChange={handleImageUpload}
+                                />
+
+                                {isUploadingImage && (
+                                  <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-500">
+                                    <Loader2 size={16} className="animate-spin text-slate-600" />
+                                    <span>Uploading photo...</span>
+                                  </div>
+                                )}
+
+                                {statusImage && !isUploadingImage && (
+                                  <div className="space-y-2">
+                                    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+                                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                                      <img
+                                        src={statusImage}
+                                        alt="Status photo preview"
+                                        className="max-h-60 w-full object-contain"
+                                      />
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => setStatusImage(null)}
+                                      className="w-full rounded-xl px-4 py-2 text-xs font-medium text-slate-500 transition hover:bg-white"
+                                    >
+                                      Remove photo
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+
                               <div className="flex gap-2">
                                 <button
                                   onClick={() => void saveCustomStatus()}
-                                  disabled={!customMessage.trim() && !statusImage}
-                                  className="flex-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition disabled:bg-slate-200 disabled:text-slate-400"
+                                  disabled={(!customMessage.trim() && !statusImage) || isUploadingImage}
+                                  className="flex-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
                                 >
-                                  Save
+                                  {isUploadingImage ? 'Uploading...' : 'Save'}
                                 </button>
                                 <button
                                   onClick={() => {
+                                    resetCustomStatusForm();
                                     setShowCustomStatus(false);
-                                    setCustomMessage('');
                                   }}
                                   className="rounded-xl px-4 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100/70"
                                 >
@@ -771,71 +890,9 @@ export default function Dashboard({
                         </div>
                       </div>
                       
-                      <div>
-                          <p className="text-sm font-semibold text-slate-700">Status expiry</p>
-                          <div className="mt-3">{renderStatusExpirySelect(statusTimeout, setStatusTimeout)}</div>
-                      </div>
-
-                      <div className="flex flex-col gap-5 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 md:max-w-xs md:self-start">
-                        <div>
-                          <p className="text-sm font-semibold text-slate-700">Add photo</p>
-                          <p className="mt-1 text-xs text-slate-500">
-                            Attach a snapshot to go with any quick or custom update.
-                          </p>
-                      <div className="mt-3 grid grid-cols-1 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => libraryInputRef.current?.click()}
-                          className="flex w-full flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 transition hover:border-slate-400 hover:bg-slate-100/60"
-                        >
-                          <span className="mb-2 text-lg">🖼️</span>
-                          <span>Choose from library</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => cameraInputRef.current?.click()}
-                          className="flex w-full flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 transition hover:border-slate-400 hover:bg-slate-100/60"
-                        >
-                          <span className="mb-2 text-lg">📷</span>
-                          <span>Take photo</span>
-                        </button>
-                        <input
-                          ref={libraryInputRef}
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={handleImageUpload}
-                        />
-                        <input
-                          ref={cameraInputRef}
-                          type="file"
-                          accept="image/*"
-                          capture="environment"
-                          className="hidden"
-                          onChange={handleImageUpload}
-                        />
-                      </div>
-                          {statusImage && (
-                            <div className="mt-3 space-y-2">
-                              <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-                                {/* eslint-disable-next-line @next/next/no-img-element */}
-                                <img
-                                  src={statusImage}
-                                  alt="Status photo preview"
-                                  className="max-h-60 w-full object-contain"
-                                />
-                              </div>
-                              <button
-                                type="button"
-                                onClick={() => setStatusImage(null)}
-                                className="w-full rounded-xl px-4 py-2 text-xs font-medium text-slate-500 transition hover:bg-white"
-                              >
-                                Remove photo
-                              </button>
-                            </div>
-                          )}
-                        </div>
-
+                      <div className="md:max-w-xs md:self-start">
+                        <p className="text-sm font-semibold text-slate-700">Status expiry</p>
+                        <div className="mt-3">{renderStatusExpirySelect(statusTimeout, setStatusTimeout)}</div>
                       </div>
                     </div>
                   )}
