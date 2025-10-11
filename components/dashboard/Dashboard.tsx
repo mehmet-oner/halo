@@ -16,6 +16,7 @@ import { useGroups } from '@/components/dashboard/useGroups';
 import CreateGroupDialog from '@/components/dashboard/CreateGroupDialog';
 import InviteMembersDialog from '@/components/dashboard/InviteMembersDialog';
 import QuickPolls from '@/components/dashboard/QuickPolls';
+import GroupTodos from '@/components/dashboard/GroupTodos';
 import {
   DEFAULT_STATUSES,
   ICON_MAP,
@@ -807,7 +808,8 @@ export default function Dashboard({ userId, displayName, email, onSignOut }: Das
               </div>
             </section>
 
-            <QuickPolls userId={userId} groupId={activeGroup.id} />
+            <QuickPolls key={`polls-${activeGroup.id}`} userId={userId} groupId={activeGroup.id} />
+            <GroupTodos key={`todos-${activeGroup.id}`} userId={userId} groupId={activeGroup.id} />
           </>
         )}
       </main>

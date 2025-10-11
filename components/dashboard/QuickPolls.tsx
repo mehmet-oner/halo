@@ -218,7 +218,6 @@ export default function QuickPolls({ userId, groupId }: QuickPollsProps) {
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-medium text-slate-900">Quick polls</h2>
-          <p className="text-sm text-slate-500">Light decisions without the group chat flood</p>
         </div>
         <button
           onClick={() => {
@@ -310,7 +309,7 @@ export default function QuickPolls({ userId, groupId }: QuickPollsProps) {
         </div>
       ) : polls.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 px-4 py-6 text-center text-sm text-slate-500">
-          No polls yet. Start one to gather a quick vote.
+          No polls yet.
         </div>
       ) : (
         <div className="space-y-4">
