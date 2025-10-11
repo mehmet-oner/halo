@@ -9,6 +9,45 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Halo",
   description: "Status sharing for close circles",
+  manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [
+      {
+        url: "/icons/halo-icon-192.png",
+        sizes: "192x192",
+        type: "image/png",
+      },
+      {
+        url: "/icons/halo-icon-512.png",
+        sizes: "512x512",
+        type: "image/png",
+      },
+    ],
+    apple: [
+      {
+        url: "/icons/halo-icon-180.png",
+        sizes: "180x180",
+        type: "image/png",
+      },
+      {
+        url: "/icons/halo-icon-152.png",
+        sizes: "152x152",
+        type: "image/png",
+      },
+    ],
+    shortcut: [
+      {
+        url: "/icons/halo-icon-96.png",
+        sizes: "96x96",
+        type: "image/png",
+      },
+    ],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "Halo",
+  },
 };
 
 export default async function RootLayout({
