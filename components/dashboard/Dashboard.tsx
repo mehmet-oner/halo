@@ -14,8 +14,7 @@ import { useSupabaseClient } from '@supabase/auth-helpers-react';
 import type { LucideIcon } from 'lucide-react';
 import {
   ChevronDown,
-  Circle as CircleIcon,
-  Home as HomeIcon,
+  Target as TargetIcon,
   ListTodo,
   Loader2,
   MessageCircle,
@@ -145,16 +144,27 @@ export default function Dashboard({
   };
 
   const [leavingGroup, setLeavingGroup] = useState(false);
+  const [showLeaveConfirmation, setShowLeaveConfirmation] = useState(false);
+  const [pendingLeaveGroup, setPendingLeaveGroup] = useState<GroupRecord | null>(null);
+  const [leaveError, setLeaveError] = useState<string | null>(null);
 
   const activeView = view;
   const navItems: Array<{
     key: DashboardView;
     label: string;
-    icon: LucideIcon;
+    icon?: LucideIcon;
+    imageSrc?: string;
+    imageAlt?: string;
     href?: string;
     onClick?: () => void;
   }> = [
-    { key: 'home', label: 'Home', icon: HomeIcon, href: '/' },
+    {
+      key: 'home',
+      label: 'Halo',
+      imageSrc: '/halo-logo.png',
+      imageAlt: 'Halo home',
+      href: '/',
+    },
     { key: 'polls', label: 'Polls', icon: MessageCircle, href: '/polls' },
     { key: 'lists', label: 'Lists', icon: ListTodo, href: '/lists' },
   ];
@@ -519,26 +529,48 @@ export default function Dashboard({
     setPreviewAlt(alt);
   };
 
-  const handleLeaveGroup = async () => {
+  const openLeaveConfirmation = () => {
     if (!activeGroup) return;
+    setPendingLeaveGroup(activeGroup);
+    setLeaveError(null);
+    setShowLeaveConfirmation(true);
+  };
+
+  const closeLeaveConfirmation = () => {
+    if (leavingGroup) return;
+    setShowLeaveConfirmation(false);
+    setPendingLeaveGroup(null);
+    setLeaveError(null);
+  };
+
+  const handleLeaveGroup = async () => {
+    const targetGroup = pendingLeaveGroup;
+    if (!targetGroup) return;
     try {
       setLeavingGroup(true);
-      const response = await fetch(`/api/groups/${activeGroup.id}/members/${userId}`, {
+      setLeaveError(null);
+      const response = await fetch(`/api/groups/${targetGroup.id}/members/${userId}`, {
         method: 'DELETE',
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
         throw new Error(payload.error ?? 'Unable to leave group.');
       }
-      removeMembership(activeGroup.id, userId);
+      removeMembership(targetGroup.id, userId);
       setActiveGroupId((previous) => {
-        if (previous !== activeGroup.id) return previous;
-        const next = groups.filter((group) => group.id !== activeGroup.id);
+        if (previous !== targetGroup.id) return previous;
+        const next = groups.filter((group) => group.id !== targetGroup.id);
         return next.length ? next[0].id : null;
       });
       void refresh();
+      setShowLeaveConfirmation(false);
+      setPendingLeaveGroup(null);
+      setLeaveError(null);
     } catch (leaveError) {
       console.error('Failed to leave group', leaveError);
+      const message =
+        leaveError instanceof Error ? leaveError.message : 'Failed to leave the group.';
+      setLeaveError(message);
     } finally {
       setLeavingGroup(false);
     }
@@ -902,7 +934,7 @@ export default function Dashboard({
                   <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <h2 className="flex items-center gap-2 text-lg font-medium text-slate-900">
-                        <CircleIcon aria-hidden className="lucide lucide-circle h-[18px] w-[18px]" />
+                        <TargetIcon aria-hidden className="lucide lucide-target h-[18px] w-[18px]" />
                         Circle
                       </h2>
                       <p className="text-sm text-slate-500">Check ins in {activeGroup.name}</p>
@@ -918,7 +950,7 @@ export default function Dashboard({
                         </button>
                       ) : (
                         <button
-                          onClick={handleLeaveGroup}
+                          onClick={openLeaveConfirmation}
                           disabled={leavingGroup}
                           className="flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-rose-400 hover:bg-rose-50 disabled:cursor-not-allowed disabled:border-slate-200"
                         >
@@ -945,6 +977,60 @@ export default function Dashboard({
           </>
         )}
       </main>
+
+      {showLeaveConfirmation && pendingLeaveGroup && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-950/70 px-4 py-8">
+          <div className="relative w-full max-w-md rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-2xl backdrop-blur">
+            <button
+              type="button"
+              onClick={closeLeaveConfirmation}
+              disabled={leavingGroup}
+              className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
+              aria-label="Close leave group dialog"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="mb-5 flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-white">
+                <Users size={18} />
+              </span>
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Leave {pendingLeaveGroup.name}?
+                </h2>
+                <p className="text-sm text-slate-500">
+                  You will lose access to updates, polls, and shared lists for this group.
+                </p>
+              </div>
+            </div>
+
+            {leaveError && <p className="mb-4 text-sm text-rose-500">{leaveError}</p>}
+
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeLeaveConfirmation}
+                disabled={leavingGroup}
+                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100/60 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                Stay in group
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void handleLeaveGroup();
+                }}
+                disabled={leavingGroup}
+                className="flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+              >
+                {leavingGroup && <Loader2 size={16} className="animate-spin" />}
+                Leave group
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {previewImage && (
         <div
@@ -980,11 +1066,11 @@ export default function Dashboard({
       <footer className="fixed bottom-0 left-0 right-0 z-20 border-t border-slate-200/70 bg-white/90 backdrop-blur">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-around px-5 py-3 text-xs font-medium text-slate-500">
           {navItems.map((item) => {
-            const Icon = item.icon;
             const isActive = item.key === activeView;
             const classes = `flex flex-col items-center gap-1 transition ${
               isActive ? 'text-slate-900' : 'text-slate-500 hover:text-slate-700'
             }`;
+            const iconClasses = `h-6 w-6 transition-opacity duration-200 ${isActive ? '' : 'opacity-60'}`;
 
             return (
               <button
@@ -1001,7 +1087,17 @@ export default function Dashboard({
                 }}
                 className={classes}
               >
-                <Icon size={20} />
+                {item.imageSrc ? (
+                  <Image
+                    src={item.imageSrc}
+                    alt={item.imageAlt ?? item.label}
+                    width={24}
+                    height={24}
+                    className={iconClasses}
+                  />
+                ) : (
+                  item.icon && <item.icon size={20} className={iconClasses} />
+                )}
                 <span>{item.label}</span>
               </button>
             );
