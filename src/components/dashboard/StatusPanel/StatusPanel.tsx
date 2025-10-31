@@ -4,7 +4,6 @@ import type { MemberStatus } from "@/hooks/useStatus";
 import StatusComposerDrawer from "./StatusComposerDrawer";
 
 type StatusPanelProps = {
-  groupId: string;
   quickStatuses: QuickStatus[];
   userStatus: MemberStatus | null;
   onPostStatus: (data: {
@@ -17,7 +16,6 @@ type StatusPanelProps = {
 };
 
 export default function StatusPanel({
-  groupId,
   quickStatuses,
   userStatus,
   onPostStatus,
@@ -110,7 +108,6 @@ export default function StatusPanel({
       </section>
 
       <StatusComposerDrawer
-        groupId={groupId}
         open={composerOpen}
         onClose={() => setComposerOpen(false)}
         quickStatuses={quickStatuses}

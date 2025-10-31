@@ -308,7 +308,6 @@ export default function Dashboard({
           <>
             {view === "home" && (
               <StatusPanel
-                groupId={activeGroup.id}
                 quickStatuses={quickStatuses}
                 userStatus={userStatus}
                 onPostStatus={postStatus}

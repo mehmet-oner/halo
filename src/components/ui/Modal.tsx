@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
 import { X } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -26,9 +26,6 @@ export default function Modal({
   showCloseButton = true,
   closeButtonAriaLabel = "Close dialog",
 }: ModalProps) {
-  const [dragOffset, setDragOffset] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
-  const dragStartY = useRef<number | null>(null);
   useEffect(() => {
     if (!isOpen) return;
 
@@ -48,52 +45,12 @@ export default function Modal({
     };
   }, [isOpen, onClose]);
 
-  useEffect(() => {
-    if (!isOpen) {
-      setDragOffset(0);
-      setIsDragging(false);
-      dragStartY.current = null;
-    }
-  }, [isOpen]);
-
-  const handleTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
-    dragStartY.current = event.touches[0]?.clientY ?? null;
-    setIsDragging(true);
-  };
-
-  const handleTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
-    if (dragStartY.current === null) return;
-    const currentY = event.touches[0]?.clientY;
-    if (typeof currentY !== "number") return;
-    const delta = currentY - dragStartY.current;
-    if (delta > 0) {
-      setDragOffset(delta);
-    }
-  };
-
-  const handleTouchEnd = () => {
-    if (dragOffset > 80) {
-      onClose();
-    } else {
-      setDragOffset(0);
-    }
-    dragStartY.current = null;
-    setIsDragging(false);
-  };
-
   if (!isOpen) return null;
 
   return (
     <div
       className={`${baseOverlayClass} ${overlayClassName ?? ""}`.trim()}
-      style={{
-        transform: `translateY(${dragOffset}px)`,
-        transition: isDragging ? "none" : "transform 0.2s ease",
-      }}
       onClick={onClose}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
       role="dialog"
       aria-modal="true"
     >
