@@ -1,256 +1,312 @@
-'use client';
+"use client";
 
-import { useState } from "react";
+import { useState, useCallback, useTransition } from "react";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useSupabaseClient } from "@supabase/auth-helpers-react";
 import { AuthApiError } from "@supabase/supabase-js";
 import { useRouter } from "next/navigation";
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { cn } from "@/lib/utils";
+import { Eye, EyeOff } from "lucide-react";
 
 type AuthMode = "sign-in" | "sign-up";
 
-const INITIAL_MESSAGE =
-  "Halo requires a verified email before you can join a circle. Sign in with your password or create an account below.";
+export const authSchema = (mode: "sign-in" | "sign-up") =>
+  z.object({
+    email: z.string().email("Invalid email address"),
+    username:
+      mode === "sign-up"
+        ? z.string().min(2, "Display name required")
+        : z.string().optional(),
+    password:
+      mode === "sign-up"
+        ? z.string().min(8, "Password must be at least 8 characters")
+        : z.string().min(1, "Password is required"),
+  });
 
+export type AuthFormValues = z.infer<ReturnType<typeof authSchema>>;
 export default function AuthPanel() {
   const supabase = useSupabaseClient();
   const router = useRouter();
+
   const [mode, setMode] = useState<AuthMode>("sign-in");
-  const [email, setEmail] = useState("");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [message, setMessage] = useState<string | null>(INITIAL_MESSAGE);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [isPending, startTransition] = useTransition();
+  const [showPassword, setShowPassword] = useState(false);
 
-  const resetFeedback = () => {
-    setMessage(INITIAL_MESSAGE);
+  const schema = authSchema(mode);
+
+  const form = useForm<AuthFormValues>({
+    resolver: zodResolver(schema),
+    defaultValues: { email: "", username: "", password: "" },
+  });
+
+  const toggleMode = useCallback(() => {
+    setMode((m) => (m === "sign-in" ? "sign-up" : "sign-in"));
+    form.reset();
+    setMessage(null);
     setShowConfirmation(false);
-  };
+  }, [form]);
 
-  const toggleMode = () => {
-    setMode((current) => (current === "sign-in" ? "sign-up" : "sign-in"));
-    setUsername("");
-    setPassword("");
-    resetFeedback();
-  };
-
-  const getRedirectUrl = () => {
+  const getRedirectUrl = useCallback(() => {
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
     const baseUrl =
       typeof siteUrl === "string" && siteUrl.length > 0
         ? siteUrl.replace(/\/+$/, "")
         : window.location.origin;
     return `${baseUrl}/auth/callback`;
-  };
+  }, []);
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setIsSubmitting(true);
-    setMessage(null);
+  const onSubmit = useCallback(
+    async (values: z.infer<typeof schema>) => {
+      startTransition(async () => {
+        setMessage(null);
+        setShowConfirmation(false);
 
-    try {
-      const trimmedEmail = email.trim();
-      const trimmedUsername = username.trim();
-      const trimmedPassword = password.trim();
+        try {
+          const { email, password } = values;
+          const username = values.username?.trim();
 
-      if (!trimmedEmail) {
-        throw new Error("Email is required.");
-      }
+          if (mode === "sign-up") {
+            const { data, error } = await supabase.auth.signUp({
+              email,
+              password,
+              options: {
+                data: { username },
+                emailRedirectTo: getRedirectUrl(),
+              },
+            });
 
-      if (!trimmedPassword) {
-        throw new Error("Password is required.");
-      }
+            if (error) {
+              if (error instanceof AuthApiError && error.status === 400) {
+                setMode("sign-in");
+                setMessage("Account exists. Try signing in.");
+                return;
+              }
+              throw error;
+            }
 
-      if (mode === "sign-up") {
-        if (!trimmedUsername) {
-          throw new Error("Display name is required for sign up.");
-        }
+            if (
+              data?.user &&
+              Array.isArray(data.user.identities) &&
+              data.user.identities.length === 0
+            ) {
+              setMode("sign-in");
+              setMessage("Account exists. Try signing in.");
+              return;
+            }
 
-        if (trimmedPassword.length < 8) {
-          throw new Error("Password must be at least 8 characters.");
-        }
-
-        const redirectTo = getRedirectUrl();
-        const { data, error } = await supabase.auth.signUp({
-          email: trimmedEmail,
-          password: trimmedPassword,
-          options: {
-            data: { username: trimmedUsername },
-            emailRedirectTo: redirectTo,
-          },
-        });
-
-        if (error) {
-          if (error instanceof AuthApiError && error.status === 400) {
+            setShowConfirmation(true);
+            setMessage("Check your inbox to verify your email.");
             setMode("sign-in");
-            setPassword("");
-            setMessage("An account already exists for this email. Try signing in instead.");
-            setShowConfirmation(false);
+            form.reset({ email, username: "", password: "" });
             return;
           }
-          throw error;
+
+          // sign in
+          const { data, error } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+
+          if (error) throw error;
+
+          if (!data.session) {
+            setMessage("Please verify your email before signing in.");
+            return;
+          }
+
+          setMessage("Welcome back! Redirecting...");
+          router.replace("/");
+          router.refresh();
+        } catch (err) {
+          const msg =
+            err instanceof Error ? err.message : "Unexpected error occurred.";
+          setMessage(msg);
         }
-
-        if (data?.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) {
-          setMode("sign-in");
-          setPassword("");
-          setMessage("An account already exists for this email. Try signing in instead.");
-          setShowConfirmation(false);
-          return;
-        }
-
-        setMode("sign-in");
-        setPassword("");
-        setShowConfirmation(true);
-        setMessage(
-          "Check your inbox to verify your email. Once confirmed, we will sign you in automatically."
-        );
-        return;
-      }
-
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: trimmedEmail,
-        password: trimmedPassword,
       });
-
-      if (error) {
-        throw error;
-      }
-
-      if (!data.session) {
-        setMessage("Please verify your email before signing in.");
-        setShowConfirmation(false);
-        return;
-      }
-
-      setMessage("Welcome back! Redirecting you to Halo...");
-      setShowConfirmation(false);
-      router.replace("/");
-      router.refresh();
-    } catch (error) {
-      const unknownError = error instanceof Error ? error.message : "Unexpected error.";
-      setMessage(unknownError);
-      setShowConfirmation(false);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const passwordPlaceholder = mode === "sign-up" ? "Minimum 8 characters" : "Password";
-  const isInvalidCredentials =
-    typeof message === "string" && message.trim().toLowerCase() === "invalid login credentials";
-  const messageClassName = isInvalidCredentials
-    ? "mt-4 text-sm rounded-xl bg-rose-100/70 px-3 py-2 text-rose-600"
-    : "mt-4 text-sm text-slate-600";
+    },
+    [mode, supabase, getRedirectUrl, router, form]
+  );
 
   return (
-    <section className="w-full max-w-sm rounded-3xl border border-slate-200 bg-white/80 p-8 shadow-lg backdrop-blur">
-      <div className="mb-6 text-center">
-        <h2 className="text-2xl font-semibold text-slate-900">
-          {mode === "sign-up" ? "Create your account" : "Welcome back"}
-        </h2>
-        <p className="mt-2 text-sm text-slate-500">
+    <Card
+      className={cn(
+        "w-full max-w-sm border border-slate-200 bg-white shadow-lg backdrop-blur gap-2 p-4"
+      )}
+    >
+      <CardHeader className="text-center">
+        <CardTitle className="text-xl font-normal text-[#0a1420]">
+          {mode === "sign-up" ? "Create your account" : "Sign in"}
+        </CardTitle>
+        <p className=" text-sm text-slate-500">
           {mode === "sign-up"
             ? "Verified emails unlock your private status circles."
-            : "Sign in with your verified email and password."}
+            : ""}
         </p>
-      </div>
+      </CardHeader>
 
-      <form className="space-y-4" onSubmit={handleSubmit}>
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-slate-700" htmlFor="email">
-            Email
-          </label>
-          <input
-            id="email"
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-            autoComplete="email"
-            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-500 focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
-            placeholder="you@example.com"
-          />
-        </div>
-
-        {mode === "sign-up" && (
-          <div className="space-y-2">
-            <label className="block text-sm font-medium text-slate-700" htmlFor="username">
-              Display name
-            </label>
-            <input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(event) => setUsername(event.target.value)}
-              className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-500 focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
-              placeholder="halo-friend"
-              required
-              autoComplete="nickname"
+      <CardContent className={cn("px-2")}>
+        <Form {...form}>
+          <form
+            onSubmit={form.handleSubmit(onSubmit)}
+            className="space-y-4"
+            noValidate
+          >
+            <FormField
+              control={form.control}
+              name="email"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="font-light">Email</FormLabel>
+                  <FormControl>
+                    <Input
+                      className="bg-slate-200 text-xs font-extralight text-[#0a1420]"
+                      type="email"
+                      placeholder="you@example.com"
+                      autoComplete="email"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-            <p className="text-xs text-slate-400">This name is visible to your circles.</p>
+
+            {mode === "sign-up" && (
+              <FormField
+                control={form.control}
+                name="username"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="font-light">Display name</FormLabel>
+                    <FormControl>
+                      <Input
+                        className="bg-slate-200 text-xs font-extralight text-[#0a1420]"
+                        type="text"
+                        placeholder="halo-friend"
+                        autoComplete="nickname"
+                        {...field}
+                      />
+                    </FormControl>
+                    <p className="text-xs text-slate-400">
+                      This name is visible to your circles.
+                    </p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
+            <FormField
+              control={form.control}
+              name="password"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="font-light">Password</FormLabel>
+                  <FormControl>
+                    <div className="relative">
+                      <Input
+                        className="bg-slate-200 text-xs font-extralight text-[#0a1420]"
+                        type={showPassword ? "text" : "password"} // 👈 dynamic type
+                        placeholder={
+                          mode === "sign-up"
+                            ? "Minimum 8 characters"
+                            : "Password"
+                        }
+                        autoComplete={
+                          mode === "sign-up"
+                            ? "new-password"
+                            : "current-password"
+                        }
+                        {...field}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((prev) => !prev)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700"
+                      >
+                        {showPassword ? (
+                          <EyeOff className="h-4 w-4" />
+                        ) : (
+                          <Eye className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <Button
+              type="submit"
+              className="w-full mt-2 text-sm font-light text-[#0a1420] bg-[#D3EFCE] rounded-4xl"
+              disabled={isPending || form.formState.isSubmitting}
+            >
+              {isPending
+                ? "Working..."
+                : mode === "sign-up"
+                ? "Create account"
+                : "Sign in"}
+            </Button>
+          </form>
+        </Form>
+
+        {message && (
+          <p className="mt-4 text-sm text-slate-600 text-center">{message}</p>
+        )}
+
+        {showConfirmation && (
+          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+            We sent a verification email to{" "}
+            <span className="font-medium">{form.getValues("email")}</span>.
+            Follow the link to confirm your account and we will drop you right
+            into Halo.
           </div>
         )}
 
-        <div className="space-y-2">
-          <label className="block text-sm font-medium text-slate-700" htmlFor="password">
-            Password
-          </label>
-          <input
-            id="password"
-            type="password"
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-500 focus:border-slate-500 focus:outline-none focus:ring-2 focus:ring-slate-200"
-            placeholder={passwordPlaceholder}
-            minLength={8}
-            autoComplete={mode === "sign-up" ? "new-password" : "current-password"}
-            required
-          />
+        <div className="mt-6 text-center text-sm text-slate-500">
+          {mode === "sign-up" ? (
+            <>
+              Already have an account?
+              <Button
+                variant="link"
+                className="ml-1 px-0 text-slate-900 text-xs"
+                onClick={toggleMode}
+                type="button"
+              >
+                Sign in
+              </Button>
+            </>
+          ) : (
+            <>
+              New to Halo?
+              <Button
+                variant="link"
+                className="ml-1 px-0 text-slate-900 text-xs"
+                onClick={toggleMode}
+                type="button"
+              >
+                Create an account
+              </Button>
+            </>
+          )}
         </div>
-
-        <button
-          type="submit"
-          disabled={isSubmitting}
-          className="w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:bg-slate-300 disabled:text-slate-500"
-        >
-          {isSubmitting ? "Working..." : mode === "sign-up" ? "Create account" : "Sign in"}
-        </button>
-      </form>
-
-      {message && <p className={messageClassName}>{message}</p>}
-
-      {showConfirmation && (
-        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
-          We sent a verification email to <span className="font-medium">{email}</span>. Follow the link to
-          confirm your account and we will drop you right into Halo.
-        </div>
-      )}
-
-      <div className="mt-6 text-center text-sm text-slate-500">
-        {mode === "sign-up" ? (
-          <>
-            Already have an account?
-            <button
-              type="button"
-              onClick={toggleMode}
-              className="ml-1 font-medium text-slate-900 underline-offset-4 hover:underline"
-            >
-              Sign in
-            </button>
-          </>
-        ) : (
-          <>
-            New to Halo?
-            <button
-              type="button"
-              onClick={toggleMode}
-              className="ml-1 font-medium text-slate-900 underline-offset-4 hover:underline"
-            >
-              Create an account
-            </button>
-          </>
-        )}
-      </div>
-    </section>
+      </CardContent>
+    </Card>
   );
 }
