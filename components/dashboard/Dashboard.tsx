@@ -1,7 +1,6 @@
-'use client';
+"use client";
 
-import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -9,32 +8,39 @@ import {
   useRef,
   useState,
   type ChangeEvent,
-} from 'react';
-import { useSupabaseClient } from '@supabase/auth-helpers-react';
-import type { LucideIcon } from 'lucide-react';
+} from "react";
+import { useSupabaseClient } from "@supabase/auth-helpers-react";
+import type { LucideIcon } from "lucide-react";
 import {
-  ChevronDown,
   Target as TargetIcon,
   ListTodo,
   Loader2,
   MessageCircle,
   Plus,
   Users,
-  X,
-} from 'lucide-react';
-import { useGroups } from '@/components/dashboard/useGroups';
-import CreateGroupDialog from '@/components/dashboard/CreateGroupDialog';
-import InviteMembersDialog from '@/components/dashboard/InviteMembersDialog';
-import QuickPolls from '@/components/dashboard/QuickPolls';
-import GroupTodos from '@/components/dashboard/GroupTodos';
+} from "lucide-react";
+import { useGroups } from "@/components/dashboard/useGroups";
+import CreateGroupDialog from "@/components/dashboard/CreateGroupDialog";
+import InviteMembersDialog from "@/components/dashboard/InviteMembersDialog";
+import QuickPolls from "@/components/dashboard/QuickPolls";
+import GroupTodos from "@/components/dashboard/GroupTodos";
 import {
   DEFAULT_STATUSES,
   ICON_MAP,
   findPreset,
   getDisplayName,
   type QuickStatus,
-} from '@/components/dashboard/groupPresets';
-import type { GroupMember, GroupRecord, GroupStatusRecord } from '@/types/groups';
+} from "@/components/dashboard/groupPresets";
+import type {
+  GroupMember,
+  GroupRecord,
+  GroupStatusRecord,
+} from "@/types/groups";
+import Header from "./components/Header";
+import GroupNav from "./components/GroupNav";
+import FooterNav from "./components/FooterNav";
+import StatusPanel from "./components/StatusPanel/StatusPanel";
+import CirclePanel from "./components/CirclePanel";
 
 type MemberStatus = {
   status: string;
@@ -45,11 +51,11 @@ type MemberStatus = {
 };
 
 const STATUS_TIMEOUTS: Record<string, number> = {
-  '30m': 30 * 60 * 1000,
-  '1h': 60 * 60 * 1000,
-  '4h': 4 * 60 * 60 * 1000,
-  '8h': 8 * 60 * 60 * 1000,
-  '24h': 24 * 60 * 60 * 1000,
+  "30m": 30 * 60 * 1000,
+  "1h": 60 * 60 * 1000,
+  "4h": 4 * 60 * 60 * 1000,
+  "8h": 8 * 60 * 60 * 1000,
+  "24h": 24 * 60 * 60 * 1000,
 };
 
 const STATUS_POLL_INTERVAL_MS = 5_000;
@@ -57,28 +63,28 @@ const STATUS_POLL_INTERVAL_MS = 5_000;
 const formatRelativeTimestamp = (iso: string) => {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) {
-    return 'Just now';
+    return "Just now";
   }
 
   const diffMs = Date.now() - date.getTime();
   if (diffMs < 60_000) {
-    return 'Just now';
+    return "Just now";
   }
 
   const diffMinutes = Math.floor(diffMs / 60_000);
   if (diffMinutes < 60) {
-    return `${diffMinutes} min${diffMinutes === 1 ? '' : 's'} ago`;
+    return `${diffMinutes} min${diffMinutes === 1 ? "" : "s"} ago`;
   }
 
   const diffHours = Math.floor(diffMinutes / 60);
   if (diffHours < 24) {
-    return `${diffHours} hr${diffHours === 1 ? '' : 's'} ago`;
+    return `${diffHours} hr${diffHours === 1 ? "" : "s"} ago`;
   }
 
   return date.toLocaleDateString();
 };
 
-export type DashboardView = 'home' | 'polls' | 'lists';
+export type DashboardView = "home" | "polls" | "lists";
 
 type DashboardProps = {
   userId: string;
@@ -88,13 +94,14 @@ type DashboardProps = {
   view?: DashboardView;
 };
 
-const getStatusKey = (groupId: string, memberId: string) => `${groupId}-${memberId}`;
+const getStatusKey = (groupId: string, memberId: string) =>
+  `${groupId}-${memberId}`;
 
 const renderInitials = (name: string) =>
   name
-    .split(' ')
+    .split(" ")
     .map((part) => part.charAt(0))
-    .join('')
+    .join("")
     .slice(0, 2)
     .toUpperCase();
 
@@ -105,37 +112,40 @@ export default function Dashboard({
   displayName,
   email,
   onSignOut,
-  view = 'home',
+  view = "home",
 }: DashboardProps) {
   const router = useRouter();
   const supabase = useSupabaseClient();
-  const { groups, loading, error, addGroup, removeMembership, refresh } = useGroups();
+  const { groups, loading, error, addGroup, removeMembership, refresh } =
+    useGroups();
   const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const hasAppliedStoredGroup = useRef(false);
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [inviteGroup, setInviteGroup] = useState<GroupRecord | null>(null);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const [previewAlt, setPreviewAlt] = useState('');
+  const [previewAlt, setPreviewAlt] = useState("");
   const [showAccountMenu, setShowAccountMenu] = useState(false);
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
   const imageReaderRef = useRef<FileReader | null>(null);
   const [signingOut, setSigningOut] = useState(false);
 
-  const [memberStatuses, setMemberStatuses] = useState<Record<string, MemberStatus>>({});
-  const [statusTimeout, setStatusTimeout] = useState<string>('4h');
+  const [memberStatuses, setMemberStatuses] = useState<
+    Record<string, MemberStatus>
+  >({});
+  const [statusTimeout, setStatusTimeout] = useState<string>("4h");
   const [showStatusPicker, setShowStatusPicker] = useState(false);
   const [showCustomStatus, setShowCustomStatus] = useState(false);
-  const [customMessage, setCustomMessage] = useState('');
+  const [customMessage, setCustomMessage] = useState("");
   const [statusImage, setStatusImage] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const resetCustomStatusForm = () => {
-    setCustomMessage('');
+    setCustomMessage("");
     setStatusImage(null);
     setIsUploadingImage(false);
     if (photoInputRef.current) {
-      photoInputRef.current.value = '';
-      photoInputRef.current.removeAttribute('capture');
+      photoInputRef.current.value = "";
+      photoInputRef.current.removeAttribute("capture");
     }
     if (imageReaderRef.current) {
       imageReaderRef.current.abort();
@@ -145,7 +155,8 @@ export default function Dashboard({
 
   const [leavingGroup, setLeavingGroup] = useState(false);
   const [showLeaveConfirmation, setShowLeaveConfirmation] = useState(false);
-  const [pendingLeaveGroup, setPendingLeaveGroup] = useState<GroupRecord | null>(null);
+  const [pendingLeaveGroup, setPendingLeaveGroup] =
+    useState<GroupRecord | null>(null);
   const [leaveError, setLeaveError] = useState<string | null>(null);
 
   const activeView = view;
@@ -159,14 +170,14 @@ export default function Dashboard({
     onClick?: () => void;
   }> = [
     {
-      key: 'home',
-      label: 'Halo',
-      imageSrc: '/halo-logo.png',
-      imageAlt: 'Halo home',
-      href: '/',
+      key: "home",
+      label: "Halo",
+      imageSrc: "/halo-logo.png",
+      imageAlt: "Halo home",
+      href: "/",
     },
-    { key: 'polls', label: 'Polls', icon: MessageCircle, href: '/polls' },
-    { key: 'lists', label: 'Lists', icon: ListTodo, href: '/lists' },
+    { key: "polls", label: "Polls", icon: MessageCircle, href: "/polls" },
+    { key: "lists", label: "Lists", icon: ListTodo, href: "/lists" },
   ];
 
   const activeGroup = useMemo(() => {
@@ -182,9 +193,10 @@ export default function Dashboard({
 
     if (!hasAppliedStoredGroup.current) {
       hasAppliedStoredGroup.current = true;
-      if (typeof window !== 'undefined') {
-        const stored = window.localStorage.getItem('halo:last-group-id');
-        const match = stored && groups.some((group) => group.id === stored) ? stored : null;
+      if (typeof window !== "undefined") {
+        const stored = window.localStorage.getItem("halo:last-group-id");
+        const match =
+          stored && groups.some((group) => group.id === stored) ? stored : null;
         setActiveGroupId(match ?? groups[0].id);
         return;
       }
@@ -196,17 +208,18 @@ export default function Dashboard({
   }, [groups, activeGroupId]);
 
   useEffect(() => {
-    if (typeof window === 'undefined' || !activeGroupId) {
+    if (typeof window === "undefined" || !activeGroupId) {
       return;
     }
-    window.localStorage.setItem('halo:last-group-id', activeGroupId);
+    window.localStorage.setItem("halo:last-group-id", activeGroupId);
   }, [activeGroupId]);
 
   const isOwner = activeGroup?.ownerId === userId;
   const presetConfig = findPreset(activeGroup?.preset ?? undefined);
-  const quickStatuses: QuickStatus[] = presetConfig?.statuses ?? DEFAULT_STATUSES;
+  const quickStatuses: QuickStatus[] =
+    presetConfig?.statuses ?? DEFAULT_STATUSES;
   const initials = useMemo(() => renderInitials(displayName), [displayName]);
-  const IconForActiveGroup = resolveIcon(activeGroup?.icon ?? 'users');
+  const IconForActiveGroup = resolveIcon(activeGroup?.icon ?? "users");
 
   const syncGroupStatuses = useCallback(
     (groupId: string, records: GroupStatusRecord[], replace: boolean) => {
@@ -224,10 +237,12 @@ export default function Dashboard({
         records.forEach((record) => {
           next[getStatusKey(groupId, record.userId)] = {
             status: record.status,
-            emoji: record.emoji ?? '',
+            emoji: record.emoji ?? "",
             timestamp: formatRelativeTimestamp(record.updatedAt),
             image: record.image,
-            expiresAt: record.expiresAt ? new Date(record.expiresAt).getTime() : null,
+            expiresAt: record.expiresAt
+              ? new Date(record.expiresAt).getTime()
+              : null,
           };
         });
 
@@ -240,15 +255,19 @@ export default function Dashboard({
   const fetchGroupStatuses = useCallback(
     async (groupId: string) => {
       try {
-        const response = await fetch(`/api/groups/${groupId}/statuses`, { cache: 'no-store' });
+        const response = await fetch(`/api/groups/${groupId}/statuses`, {
+          cache: "no-store",
+        });
         if (!response.ok) {
           const payload = await response.json().catch(() => ({}));
-          throw new Error(payload.error ?? 'Unable to load statuses.');
+          throw new Error(payload.error ?? "Unable to load statuses.");
         }
-        const payload = (await response.json()) as { statuses: GroupStatusRecord[] };
+        const payload = (await response.json()) as {
+          statuses: GroupStatusRecord[];
+        };
         syncGroupStatuses(groupId, payload.statuses ?? [], true);
       } catch (error) {
-        console.error('Failed to fetch statuses', error);
+        console.error("Failed to fetch statuses", error);
       }
     },
     [syncGroupStatuses]
@@ -269,7 +288,10 @@ export default function Dashboard({
     }
 
     const interval = window.setInterval(() => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+      if (
+        typeof document !== "undefined" &&
+        document.visibilityState === "hidden"
+      ) {
         return;
       }
       void fetchGroupStatuses(activeGroupIdForFetch);
@@ -282,23 +304,26 @@ export default function Dashboard({
     if (!showAccountMenu) return;
 
     const handleClickOutside = (event: MouseEvent) => {
-      if (accountMenuRef.current && !accountMenuRef.current.contains(event.target as Node)) {
+      if (
+        accountMenuRef.current &&
+        !accountMenuRef.current.contains(event.target as Node)
+      ) {
         setShowAccountMenu(false);
       }
     };
 
     const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === "Escape") {
         setShowAccountMenu(false);
       }
     };
 
-    document.addEventListener('mousedown', handleClickOutside);
-    document.addEventListener('keydown', handleEscape);
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
 
     return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-      document.removeEventListener('keydown', handleEscape);
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
     };
   }, [showAccountMenu]);
 
@@ -306,19 +331,19 @@ export default function Dashboard({
     if (!previewImage) return;
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
+      if (event.key === "Escape") {
         setPreviewImage(null);
-        setPreviewAlt('');
+        setPreviewAlt("");
       }
     };
 
     const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    document.addEventListener('keydown', handleKeyDown);
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", handleKeyDown);
 
     return () => {
       document.body.style.overflow = originalOverflow;
-      document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [previewImage]);
 
@@ -351,17 +376,17 @@ export default function Dashboard({
 
     const syncProfile = async () => {
       try {
-        await supabase.from('profiles').upsert(
+        await supabase.from("profiles").upsert(
           {
             id: userId,
             display_name: displayName,
             email,
             username: displayName,
           },
-          { onConflict: 'id' }
+          { onConflict: "id" }
         );
       } catch (syncError) {
-        console.error('Failed to upsert profile', syncError);
+        console.error("Failed to upsert profile", syncError);
       }
     };
 
@@ -379,7 +404,7 @@ export default function Dashboard({
   }, [onSignOut]);
 
   const getExpirationTime = (timeoutKey: string) => {
-    if (timeoutKey === 'never') return null;
+    if (timeoutKey === "never") return null;
     const duration = STATUS_TIMEOUTS[timeoutKey];
     if (!duration) return null;
     return Date.now() + duration;
@@ -388,7 +413,7 @@ export default function Dashboard({
   const handleImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) {
-      photoInputRef.current?.removeAttribute('capture');
+      photoInputRef.current?.removeAttribute("capture");
       return;
     }
 
@@ -405,52 +430,55 @@ export default function Dashboard({
     reader.onerror = () => {
       setIsUploadingImage(false);
       imageReaderRef.current = null;
-      photoInputRef.current?.removeAttribute('capture');
+      photoInputRef.current?.removeAttribute("capture");
     };
     reader.onabort = () => {
       setIsUploadingImage(false);
       imageReaderRef.current = null;
-      photoInputRef.current?.removeAttribute('capture');
+      photoInputRef.current?.removeAttribute("capture");
     };
     reader.onloadend = () => {
-      if (typeof reader.result === 'string' && !reader.error) {
+      if (typeof reader.result === "string" && !reader.error) {
         setStatusImage(reader.result);
       }
       setIsUploadingImage(false);
       imageReaderRef.current = null;
-      photoInputRef.current?.removeAttribute('capture');
+      photoInputRef.current?.removeAttribute("capture");
     };
     reader.readAsDataURL(file);
-    event.target.value = '';
+    event.target.value = "";
   };
 
-  const triggerPhotoPicker = (mode: 'camera' | 'library') => {
+  const triggerPhotoPicker = (mode: "camera" | "library") => {
     const input = photoInputRef.current;
     if (!input) return;
-    input.value = '';
-    if (mode === 'camera') {
-      input.setAttribute('capture', 'environment');
+    input.value = "";
+    if (mode === "camera") {
+      input.setAttribute("capture", "environment");
     } else {
-      input.removeAttribute('capture');
+      input.removeAttribute("capture");
     }
     input.click();
   };
 
   const submitStatus = useCallback(
-    async (
-      payload: { status: string; emoji: string | null; image: string | null; expiresAt: number | null }
-    ) => {
+    async (payload: {
+      status: string;
+      emoji: string | null;
+      image: string | null;
+      expiresAt: number | null;
+    }) => {
       if (!activeGroup) return;
 
       const response = await fetch(`/api/groups/${activeGroup.id}/statuses`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
         const problem = await response.json().catch(() => ({}));
-        throw new Error(problem.error ?? 'Unable to update status.');
+        throw new Error(problem.error ?? "Unable to update status.");
       }
 
       const result = (await response.json()) as { status: GroupStatusRecord };
@@ -471,13 +499,13 @@ export default function Dashboard({
         expiresAt,
       });
     } catch (error) {
-      console.error('Failed to post status', error);
+      console.error("Failed to post status", error);
     }
 
     resetCustomStatusForm();
     setShowStatusPicker(false);
     setShowCustomStatus(false);
-    setStatusTimeout('4h');
+    setStatusTimeout("4h");
   };
 
   const saveCustomStatus = async () => {
@@ -489,22 +517,25 @@ export default function Dashboard({
 
     try {
       await submitStatus({
-        status: customMessage.trim() || 'Custom status',
-        emoji: '💬',
+        status: customMessage.trim() || "Custom status",
+        emoji: "💬",
         image: statusImage,
         expiresAt,
       });
     } catch (error) {
-      console.error('Failed to post custom status', error);
+      console.error("Failed to post custom status", error);
     }
 
     resetCustomStatusForm();
     setShowCustomStatus(false);
     setShowStatusPicker(false);
-    setStatusTimeout('4h');
+    setStatusTimeout("4h");
   };
 
-  const renderStatusExpirySelect = (value: string, onChange: (next: string) => void) => (
+  const renderStatusExpirySelect = (
+    value: string,
+    onChange: (next: string) => void
+  ) => (
     <select
       value={value}
       onChange={(event) => onChange(event.target.value)}
@@ -549,12 +580,15 @@ export default function Dashboard({
     try {
       setLeavingGroup(true);
       setLeaveError(null);
-      const response = await fetch(`/api/groups/${targetGroup.id}/members/${userId}`, {
-        method: 'DELETE',
-      });
+      const response = await fetch(
+        `/api/groups/${targetGroup.id}/members/${userId}`,
+        {
+          method: "DELETE",
+        }
+      );
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.error ?? 'Unable to leave group.');
+        throw new Error(payload.error ?? "Unable to leave group.");
       }
       removeMembership(targetGroup.id, userId);
       setActiveGroupId((previous) => {
@@ -567,9 +601,11 @@ export default function Dashboard({
       setPendingLeaveGroup(null);
       setLeaveError(null);
     } catch (leaveError) {
-      console.error('Failed to leave group', leaveError);
+      console.error("Failed to leave group", leaveError);
       const message =
-        leaveError instanceof Error ? leaveError.message : 'Failed to leave the group.';
+        leaveError instanceof Error
+          ? leaveError.message
+          : "Failed to leave the group.";
       setLeaveError(message);
     } finally {
       setLeavingGroup(false);
@@ -579,7 +615,9 @@ export default function Dashboard({
   const emptyState = !loading && groups.length === 0;
 
   const renderGroupMember = (member: GroupMember) => {
-    const statusKey = activeGroup ? getStatusKey(activeGroup.id, member.id) : '';
+    const statusKey = activeGroup
+      ? getStatusKey(activeGroup.id, member.id)
+      : "";
     const currentStatus = memberStatuses[statusKey];
     const resolvedName = getDisplayName(member);
 
@@ -597,13 +635,20 @@ export default function Dashboard({
             {currentStatus ? (
               <div className="mt-1 flex flex-col gap-2 text-sm text-slate-600">
                 <div className="flex items-center gap-2">
-                  {currentStatus.emoji && <span className="text-base">{currentStatus.emoji}</span>}
+                  {currentStatus.emoji && (
+                    <span className="text-base">{currentStatus.emoji}</span>
+                  )}
                   <span>{currentStatus.status}</span>
                 </div>
                 {currentStatus.image && (
                   <button
                     type="button"
-                    onClick={() => openImagePreview(currentStatus.image!, `${resolvedName} status photo`)}
+                    onClick={() =>
+                      openImagePreview(
+                        currentStatus.image!,
+                        `${resolvedName} status photo`
+                      )
+                    }
                     className="mx-auto w-[55%] max-w-xs rounded-xl bg-slate-100/60 p-2 transition hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-slate-400/60"
                     aria-label={`View ${resolvedName} status photo`}
                   >
@@ -622,7 +667,9 @@ export default function Dashboard({
           </div>
         </div>
         {currentStatus?.timestamp && (
-          <span className="ml-3 text-xs text-slate-400">{currentStatus.timestamp}</span>
+          <span className="ml-3 text-xs text-slate-400">
+            {currentStatus.timestamp}
+          </span>
         )}
       </div>
     );
@@ -630,99 +677,19 @@ export default function Dashboard({
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-100 via-white to-stone-100 font-sans text-slate-900">
-      <header className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/80 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-5 py-4">
-          <div className="flex items-center gap-3">
-            <Image
-              src="/halo-logo.png"
-              alt="Halo logo"
-              width={40}
-              height={40}
-              className="h-10 w-10 rounded-full border border-slate-200 object-cover shadow-sm"
-              priority
-            />
-            <div>
-              <h1 className="text-xl font-semibold tracking-tight text-slate-900">Halo</h1>
-              <p className="text-sm text-slate-500">Status sharing for close circles</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={() => setShowCreateGroup(true)}
-              className="hidden items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100/70 sm:flex"
-            >
-              <Plus size={16} />
-              New group
-            </button>
-            <div className="relative" ref={accountMenuRef}>
-              <button
-                type="button"
-                onClick={() => setShowAccountMenu((previous) => !previous)}
-                className="flex items-center gap-3 rounded-full border border-slate-200 bg-white/80 px-3 py-2 text-left text-sm font-semibold text-slate-900 shadow-sm transition hover:border-slate-300 hover:bg-white"
-              >
-                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-xs font-semibold tracking-tight text-white">
-                  {initials}
-                </div>
-                <ChevronDown
-                  size={16}
-                  className={`text-slate-400 transition ${showAccountMenu ? 'rotate-180' : ''}`}
-                />
-              </button>
+      <Header
+        displayName={displayName}
+        email={email}
+        onSignOut={onSignOut}
+        setShowCreateGroup={setShowCreateGroup}
+      />
 
-              {showAccountMenu && (
-                <div className="absolute right-0 z-20 mt-2 w-52 rounded-2xl border border-slate-200 bg-white/95 p-3 text-sm text-slate-700 shadow-xl backdrop-blur">
-                  <div className="mb-2">
-                    <p className="truncate font-semibold text-slate-900">{displayName}</p>
-                    {email && <p className="truncate text-xs text-slate-500">{email}</p>}
-                  </div>
-                  <button
-                    onClick={handleSignOutClick}
-                    disabled={signingOut}
-                    className="flex w-full items-center justify-between rounded-xl bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-                  >
-                    <span>Sign out</span>
-                    {signingOut && <span className="text-[10px] uppercase tracking-wide">...</span>}
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <nav className="sticky top-[73px] z-10 border-b border-slate-200/60 bg-white/80 backdrop-blur">
-        <div className="mx-auto w-full max-w-5xl px-5">
-          <div className="flex items-center gap-2 overflow-x-auto py-3">
-            {groups.map((group) => {
-              const Icon = resolveIcon(group.icon);
-              const isActive = activeGroup?.id === group.id;
-              return (
-                <button
-                  key={group.id}
-                  onClick={() => setActiveGroupId(group.id)}
-                  className={`flex items-center gap-2 rounded-full px-4 py-2 text-sm transition ${
-                    isActive
-                      ? 'bg-slate-900 text-white shadow-sm'
-                      : 'bg-slate-100/70 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  <Icon size={16} />
-                  <span className="whitespace-nowrap font-medium">{group.name}</span>
-                </button>
-              );
-            })}
-            <button
-              type="button"
-              onClick={() => setShowCreateGroup(true)}
-              className="flex items-center gap-2 rounded-full border border-dashed border-slate-300 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100/70"
-            >
-              <Plus size={16} />
-              New
-            </button>
-          </div>
-        </div>
-      </nav>
+      <GroupNav
+        groups={groups}
+        activeGroupId={activeGroupId}
+        onSelectGroup={setActiveGroupId}
+        onCreateGroup={() => setShowCreateGroup(true)}
+      />
 
       <main className="mx-auto flex w-full max-w-5xl flex-col gap-6 px-5 pb-36 pt-6">
         {loading && (
@@ -743,9 +710,12 @@ export default function Dashboard({
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-slate-900 text-white">
               <Plus size={20} />
             </div>
-            <h2 className="mt-4 text-xl font-semibold text-slate-900">Create your first group</h2>
+            <h2 className="mt-4 text-xl font-semibold text-slate-900">
+              Create your first group
+            </h2>
             <p className="mt-2 text-sm text-slate-500">
-              Pick a template, invite the people you trust, and start sharing quick updates.
+              Pick a template, invite the people you trust, and start sharing
+              quick updates.
             </p>
             <button
               type="button"
@@ -760,350 +730,45 @@ export default function Dashboard({
 
         {activeGroup && (
           <>
-            {activeView === 'home' && (
-              <>
-                <section className="rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-sm backdrop-blur">
-                  <div className="mb-4 flex items-center justify-between">
-                    <div>
-                      <h2 className="flex items-center gap-2 text-lg font-medium text-slate-900">
-                        <IconForActiveGroup size={18} />
-                        Status
-                      </h2>
-                    </div>
-                    <button
-                      onClick={() => setShowStatusPicker((previous) => !previous)}
-                      className="flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100/70"
-                    >
-                      {userStatus ? 'Update' : 'Post'}
-                    </button>
-                  </div>
-
-                  {userStatus && (
-                    <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
-                          <span className="text-base">{userStatus.emoji}</span>
-                          <span>{userStatus.status}</span>
-                        </div>
-                        <span className="text-xs text-slate-400">{userStatus.timestamp}</span>
-                      </div>
-                    </div>
-                  )}
-
-                  {showStatusPicker && (
-                    <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-inner md:flex-row">
-                      <div className="flex-1 space-y-4">
-                        <div>
-                          <p className="mb-2 text-sm font-semibold text-slate-700">Suggested</p>
-                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-                            {quickStatuses.map((status) => (
-                              <button
-                                key={status.label}
-                                onClick={() => void updateStatus(status)}
-                                className="flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm transition hover:border-slate-400 hover:bg-slate-100/70"
-                              >
-                                <span className="text-lg">{status.emoji}</span>
-                                <span className="text-slate-700">{status.label}</span>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div>
-                          <button
-                            onClick={() =>
-                              setShowCustomStatus((previous) => {
-                                if (previous) {
-                                  resetCustomStatusForm();
-                                }
-                                return !previous;
-                              })
-                            }
-                            className="flex w-full items-center justify-between rounded-xl border border-dashed border-slate-300 px-4 py-3 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100/60"
-                          >
-                            <span>Create custom status</span>
-                            <ChevronDown
-                              size={16}
-                              className={`text-slate-400 transition ${showCustomStatus ? 'rotate-180' : ''}`}
-                            />
-                          </button>
-
-                          {showCustomStatus && (
-                            <div className="mt-4 space-y-4 rounded-xl border border-slate-200 bg-white/70 p-4">
-                              <textarea
-                                value={customMessage}
-                                onChange={(event) => setCustomMessage(event.target.value)}
-                                placeholder="Write a short update..."
-                                rows={3}
-                                className="w-full resize-none rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400/60"
-                              />
-
-                              <div className="space-y-3">
-                                <div>
-                                  <p className="text-sm font-semibold text-slate-700">Add photo</p>
-                                  <p className="mt-1 text-xs text-slate-500">
-                                    Attach a snapshot to pair with your custom update.
-                                  </p>
-                                </div>
-                                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-1 lg:grid-cols-2">
-                                  <button
-                                    type="button"
-                                    onClick={() => triggerPhotoPicker('library')}
-                                    className="flex w-full flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 transition hover:border-slate-400 hover:bg-slate-100/60"
-                                  >
-                                    <span className="mb-2 text-lg">🖼️</span>
-                                    <span className="font-medium text-slate-600">Choose from library</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={() => triggerPhotoPicker('camera')}
-                                    className="flex w-full flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 p-4 text-center text-sm text-slate-500 transition hover:border-slate-400 hover:bg-slate-100/60"
-                                  >
-                                    <span className="mb-2 text-lg">📸</span>
-                                    <span className="font-medium text-slate-600">Take photo</span>
-                                  </button>
-                                </div>
-                                <input
-                                  ref={photoInputRef}
-                                  type="file"
-                                  accept="image/*"
-                                  className="hidden"
-                                  onChange={handleImageUpload}
-                                />
-
-                                {isUploadingImage && (
-                                  <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-500">
-                                    <Loader2 size={16} className="animate-spin text-slate-600" />
-                                    <span>Uploading photo...</span>
-                                  </div>
-                                )}
-
-                                {statusImage && !isUploadingImage && (
-                                  <div className="space-y-2">
-                                    <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-                                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                                      <img
-                                        src={statusImage}
-                                        alt="Status photo preview"
-                                        className="max-h-60 w-full object-contain"
-                                      />
-                                    </div>
-                                    <button
-                                      type="button"
-                                      onClick={() => setStatusImage(null)}
-                                      className="w-full rounded-xl px-4 py-2 text-xs font-medium text-slate-500 transition hover:bg-white"
-                                    >
-                                      Remove photo
-                                    </button>
-                                  </div>
-                                )}
-                              </div>
-
-                              <div className="flex gap-2">
-                                <button
-                                  onClick={() => void saveCustomStatus()}
-                                  disabled={(!customMessage.trim() && !statusImage) || isUploadingImage}
-                                  className="flex-1 rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-400"
-                                >
-                                  {isUploadingImage ? 'Uploading...' : 'Save'}
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    resetCustomStatusForm();
-                                    setShowCustomStatus(false);
-                                  }}
-                                  className="rounded-xl px-4 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100/70"
-                                >
-                                  Cancel
-                                </button>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      
-                      <div className="md:max-w-xs md:self-start">
-                        <p className="text-sm font-semibold text-slate-700">Status expiry</p>
-                        <div className="mt-3">{renderStatusExpirySelect(statusTimeout, setStatusTimeout)}</div>
-                      </div>
-                    </div>
-                  )}
-                </section>
-
-                <section className="rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-sm backdrop-blur">
-                  <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h2 className="flex items-center gap-2 text-lg font-medium text-slate-900">
-                        <TargetIcon aria-hidden className="lucide lucide-target h-[18px] w-[18px]" />
-                        Circle
-                      </h2>
-                      <p className="text-sm text-slate-500">Check ins in {activeGroup.name}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {isOwner ? (
-                        <button
-                          onClick={() => setInviteGroup(activeGroup)}
-                          className="flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100/70"
-                        >
-                          <Users size={16} />
-                          Invite
-                        </button>
-                      ) : (
-                        <button
-                          onClick={openLeaveConfirmation}
-                          disabled={leavingGroup}
-                          className="flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-rose-400 hover:bg-rose-50 disabled:cursor-not-allowed disabled:border-slate-200"
-                        >
-                          {leavingGroup && <Loader2 size={16} className="animate-spin" />}
-                          Leave group
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    {activeGroup.members.map((member) => renderGroupMember(member))}
-                  </div>
-                </section>
-              </>
+            {activeView === "home" && (
+              <StatusPanel
+                userId={userId}
+                groupId={activeGroup.id}
+                quickStatuses={quickStatuses}
+              />
             )}
 
-            {(activeView === 'home' || activeView === 'polls') && (
-              <QuickPolls key={`polls-${activeGroup.id}`} userId={userId} groupId={activeGroup.id} />
+            <CirclePanel
+              activeGroup={activeGroup}
+              isOwner={isOwner}
+              leavingGroup={leavingGroup}
+              openLeaveConfirmation={openLeaveConfirmation}
+              renderGroupMember={renderGroupMember}
+              setInviteGroup={setInviteGroup}
+            />
+
+            {(activeView === "home" || activeView === "polls") && (
+              <QuickPolls
+                key={`polls-${activeGroup.id}`}
+                userId={userId}
+                groupId={activeGroup.id}
+              />
             )}
-            {(activeView === 'home' || activeView === 'lists') && (
-              <GroupTodos key={`todos-${activeGroup.id}`} groupId={activeGroup.id} />
+
+            {(activeView === "home" || activeView === "lists") && (
+              <GroupTodos
+                key={`todos-${activeGroup.id}`}
+                groupId={activeGroup.id}
+              />
             )}
           </>
         )}
       </main>
 
-      {showLeaveConfirmation && pendingLeaveGroup && (
-        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-950/70 px-4 py-8">
-          <div className="relative w-full max-w-md rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-2xl backdrop-blur">
-            <button
-              type="button"
-              onClick={closeLeaveConfirmation}
-              disabled={leavingGroup}
-              className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
-              aria-label="Close leave group dialog"
-            >
-              <X size={18} />
-            </button>
-
-            <div className="mb-5 flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-white">
-                <Users size={18} />
-              </span>
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900">
-                  Leave {pendingLeaveGroup.name}?
-                </h2>
-                <p className="text-sm text-slate-500">
-                  You will lose access to updates, polls, and shared lists for this group.
-                </p>
-              </div>
-            </div>
-
-            {leaveError && <p className="mb-4 text-sm text-rose-500">{leaveError}</p>}
-
-            <div className="flex items-center justify-end gap-2">
-              <button
-                type="button"
-                onClick={closeLeaveConfirmation}
-                disabled={leavingGroup}
-                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100/60 disabled:cursor-not-allowed disabled:opacity-70"
-              >
-                Stay in group
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  void handleLeaveGroup();
-                }}
-                disabled={leavingGroup}
-                className="flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
-              >
-                {leavingGroup && <Loader2 size={16} className="animate-spin" />}
-                Leave group
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {previewImage && (
-        <div
-          className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-950/85 px-4"
-          onClick={() => {
-            setPreviewImage(null);
-            setPreviewAlt('');
-          }}
-          role="dialog"
-          aria-modal="true"
-        >
-          <div
-            className="relative max-h-[90vh] w-full max-w-4xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <button
-              type="button"
-              onClick={() => {
-                setPreviewImage(null);
-                setPreviewAlt('');
-              }}
-              className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/80 text-white shadow-lg transition hover:bg-slate-900"
-              aria-label="Close full-size photo"
-            >
-              <X size={18} />
-            </button>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={previewImage} alt={previewAlt} className="h-full w-full rounded-3xl object-contain" />
-          </div>
-        </div>
-      )}
-
-      <footer className="fixed bottom-0 left-0 right-0 z-20 border-t border-slate-200/70 bg-white/90 backdrop-blur">
-        <div className="mx-auto flex w-full max-w-5xl items-center justify-around px-5 py-3 text-xs font-medium text-slate-500">
-          {navItems.map((item) => {
-            const isActive = item.key === activeView;
-            const classes = `flex flex-col items-center gap-1 transition ${
-              isActive ? 'text-slate-900' : 'text-slate-500 hover:text-slate-700'
-            }`;
-            const iconClasses = `h-6 w-6 transition-opacity duration-200 ${isActive ? '' : 'opacity-60'}`;
-
-            return (
-              <button
-                key={item.key}
-                type="button"
-                onClick={() => {
-                  if (item.onClick) {
-                    item.onClick();
-                    return;
-                  }
-                  if (item.href && item.key !== activeView) {
-                    router.push(item.href);
-                  }
-                }}
-                className={classes}
-              >
-                {item.imageSrc ? (
-                  <Image
-                    src={item.imageSrc}
-                    alt={item.imageAlt ?? item.label}
-                    width={24}
-                    height={24}
-                    className={iconClasses}
-                  />
-                ) : (
-                  item.icon && <item.icon size={20} className={iconClasses} />
-                )}
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </footer>
+      <FooterNav
+        activeView={activeView}
+        onNavigate={(key, href) => router.push(href)}
+      />
 
       <CreateGroupDialog
         open={showCreateGroup}
