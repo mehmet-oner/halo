@@ -1,10 +1,24 @@
 import type { QuickStatus } from "@/components/dashboard/groupPresets";
+import CustomStatusComponent from "./CustomStatusComponent";
+import { GroupRecord } from "@/types/groups";
 
 type Props = {
   quickStatuses: QuickStatus[];
   timeout: string;
   onTimeoutChange: (t: string) => void;
   onSelect: (status: QuickStatus) => void;
+  activeGroup: GroupRecord | null;
+  isUploadingImage: boolean;
+  setIsUploadingImage: (isUploading: boolean) => void;
+  getExpirationTime: (timeoutKey: string) => number | null;
+  submitStatus: (data: {
+    status: string;
+    emoji: string;
+    image: string | null;
+    expiresAt: number | null;
+  }) => Promise<void>;
+  setShowCustomStatus: React.Dispatch<React.SetStateAction<boolean>>;
+  showCustomStatus: boolean;
 };
 
 export default function StatusPicker({
@@ -12,6 +26,13 @@ export default function StatusPicker({
   timeout,
   onTimeoutChange,
   onSelect,
+  activeGroup,
+  getExpirationTime,
+  setIsUploadingImage,
+  isUploadingImage,
+  submitStatus,
+  setShowCustomStatus,
+  showCustomStatus,
 }: Props) {
   return (
     <div className="rounded-2xl border border-slate-200 bg-white/80 p-4 shadow-inner space-y-4">
@@ -30,6 +51,16 @@ export default function StatusPicker({
           ))}
         </div>
       </div>
+
+      <CustomStatusComponent
+        activeGroup={activeGroup}
+        getExpirationTime={getExpirationTime}
+        isUploadingImage={isUploadingImage}
+        setIsUploadingImage={setIsUploadingImage}
+        setShowCustomStatus={setShowCustomStatus}
+        submitStatus={submitStatus}
+        showCustomStatus={showCustomStatus}
+      />
 
       <div>
         <p className="text-sm font-semibold text-slate-700 mb-2">

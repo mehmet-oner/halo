@@ -1,24 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-  type ChangeEvent,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSupabaseClient } from "@supabase/auth-helpers-react";
 import type { LucideIcon } from "lucide-react";
-import {
-  Target as TargetIcon,
-  ListTodo,
-  Loader2,
-  MessageCircle,
-  Plus,
-  Users,
-} from "lucide-react";
+import { ListTodo, Loader2, MessageCircle, Plus, Users, X } from "lucide-react";
 import { useGroups } from "@/components/dashboard/useGroups";
 import CreateGroupDialog from "@/components/dashboard/CreateGroupDialog";
 import InviteMembersDialog from "@/components/dashboard/InviteMembersDialog";
@@ -128,7 +114,6 @@ export default function Dashboard({
   const accountMenuRef = useRef<HTMLDivElement | null>(null);
   const photoInputRef = useRef<HTMLInputElement | null>(null);
   const imageReaderRef = useRef<FileReader | null>(null);
-  const [signingOut, setSigningOut] = useState(false);
 
   const [memberStatuses, setMemberStatuses] = useState<
     Record<string, MemberStatus>
@@ -160,25 +145,6 @@ export default function Dashboard({
   const [leaveError, setLeaveError] = useState<string | null>(null);
 
   const activeView = view;
-  const navItems: Array<{
-    key: DashboardView;
-    label: string;
-    icon?: LucideIcon;
-    imageSrc?: string;
-    imageAlt?: string;
-    href?: string;
-    onClick?: () => void;
-  }> = [
-    {
-      key: "home",
-      label: "Halo",
-      imageSrc: "/halo-logo.png",
-      imageAlt: "Halo home",
-      href: "/",
-    },
-    { key: "polls", label: "Polls", icon: MessageCircle, href: "/polls" },
-    { key: "lists", label: "Lists", icon: ListTodo, href: "/lists" },
-  ];
 
   const activeGroup = useMemo(() => {
     if (!groups.length) return null;
@@ -218,8 +184,6 @@ export default function Dashboard({
   const presetConfig = findPreset(activeGroup?.preset ?? undefined);
   const quickStatuses: QuickStatus[] =
     presetConfig?.statuses ?? DEFAULT_STATUSES;
-  const initials = useMemo(() => renderInitials(displayName), [displayName]);
-  const IconForActiveGroup = resolveIcon(activeGroup?.icon ?? "users");
 
   const syncGroupStatuses = useCallback(
     (groupId: string, records: GroupStatusRecord[], replace: boolean) => {
@@ -393,72 +357,11 @@ export default function Dashboard({
     void syncProfile();
   }, [supabase, userId, displayName, email]);
 
-  const handleSignOutClick = useCallback(async () => {
-    try {
-      setShowAccountMenu(false);
-      setSigningOut(true);
-      await onSignOut();
-    } finally {
-      setSigningOut(false);
-    }
-  }, [onSignOut]);
-
   const getExpirationTime = (timeoutKey: string) => {
     if (timeoutKey === "never") return null;
     const duration = STATUS_TIMEOUTS[timeoutKey];
     if (!duration) return null;
     return Date.now() + duration;
-  };
-
-  const handleImageUpload = (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) {
-      photoInputRef.current?.removeAttribute("capture");
-      return;
-    }
-
-    if (imageReaderRef.current) {
-      imageReaderRef.current.abort();
-      imageReaderRef.current = null;
-    }
-
-    setStatusImage(null);
-    setIsUploadingImage(true);
-
-    const reader = new FileReader();
-    imageReaderRef.current = reader;
-    reader.onerror = () => {
-      setIsUploadingImage(false);
-      imageReaderRef.current = null;
-      photoInputRef.current?.removeAttribute("capture");
-    };
-    reader.onabort = () => {
-      setIsUploadingImage(false);
-      imageReaderRef.current = null;
-      photoInputRef.current?.removeAttribute("capture");
-    };
-    reader.onloadend = () => {
-      if (typeof reader.result === "string" && !reader.error) {
-        setStatusImage(reader.result);
-      }
-      setIsUploadingImage(false);
-      imageReaderRef.current = null;
-      photoInputRef.current?.removeAttribute("capture");
-    };
-    reader.readAsDataURL(file);
-    event.target.value = "";
-  };
-
-  const triggerPhotoPicker = (mode: "camera" | "library") => {
-    const input = photoInputRef.current;
-    if (!input) return;
-    input.value = "";
-    if (mode === "camera") {
-      input.setAttribute("capture", "environment");
-    } else {
-      input.removeAttribute("capture");
-    }
-    input.click();
   };
 
   const submitStatus = useCallback(
@@ -507,53 +410,6 @@ export default function Dashboard({
     setShowCustomStatus(false);
     setStatusTimeout("4h");
   };
-
-  const saveCustomStatus = async () => {
-    if (!activeGroup) return;
-    if (isUploadingImage) return;
-    if (!customMessage.trim() && !statusImage) return;
-
-    const expiresAt = getExpirationTime(statusTimeout);
-
-    try {
-      await submitStatus({
-        status: customMessage.trim() || "Custom status",
-        emoji: "💬",
-        image: statusImage,
-        expiresAt,
-      });
-    } catch (error) {
-      console.error("Failed to post custom status", error);
-    }
-
-    resetCustomStatusForm();
-    setShowCustomStatus(false);
-    setShowStatusPicker(false);
-    setStatusTimeout("4h");
-  };
-
-  const renderStatusExpirySelect = (
-    value: string,
-    onChange: (next: string) => void
-  ) => (
-    <select
-      value={value}
-      onChange={(event) => onChange(event.target.value)}
-      className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 text-sm text-slate-700 transition focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400/60"
-    >
-      <option value="30m">30 minutes</option>
-      <option value="1h">1 hour</option>
-      <option value="4h">4 hours</option>
-      <option value="8h">8 hours</option>
-      <option value="24h">24 hours</option>
-      <option value="never">Never expire</option>
-    </select>
-  );
-
-  const userStatus = useMemo(() => {
-    if (!activeGroup) return null;
-    return memberStatuses[getStatusKey(activeGroup.id, userId)] ?? null;
-  }, [activeGroup, memberStatuses, userId]);
 
   const openImagePreview = (src: string, alt: string) => {
     setPreviewImage(src);
@@ -735,6 +591,14 @@ export default function Dashboard({
                 userId={userId}
                 groupId={activeGroup.id}
                 quickStatuses={quickStatuses}
+                getExpirationTime={getExpirationTime}
+                isUploadingImage={isUploadingImage}
+                activeGroup={activeGroup}
+                showStatusPicker={showStatusPicker}
+                setIsUploadingImage={setIsUploadingImage}
+                setShowCustomStatus={setShowCustomStatus}
+                submitStatus={submitStatus}
+                showCustomStatus={showCustomStatus}
               />
             )}
 
@@ -764,6 +628,98 @@ export default function Dashboard({
           </>
         )}
       </main>
+
+      {showLeaveConfirmation && pendingLeaveGroup && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-950/70 px-4 py-8">
+          <div className="relative w-full max-w-md rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-2xl backdrop-blur">
+            <button
+              type="button"
+              onClick={closeLeaveConfirmation}
+              disabled={leavingGroup}
+              className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
+              aria-label="Close leave group dialog"
+            >
+              <X size={18} />
+            </button>
+
+            <div className="mb-5 flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-900 text-white">
+                <Users size={18} />
+              </span>
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">
+                  Leave {pendingLeaveGroup.name}?
+                </h2>
+                <p className="text-sm text-slate-500">
+                  You will lose access to updates, polls, and shared lists for
+                  this group.
+                </p>
+              </div>
+            </div>
+
+            {leaveError && (
+              <p className="mb-4 text-sm text-rose-500">{leaveError}</p>
+            )}
+
+            <div className="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                onClick={closeLeaveConfirmation}
+                disabled={leavingGroup}
+                className="rounded-full border border-slate-200 px-4 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100/60 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                Stay in group
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void handleLeaveGroup();
+                }}
+                disabled={leavingGroup}
+                className="flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:bg-slate-400"
+              >
+                {leavingGroup && <Loader2 size={16} className="animate-spin" />}
+                Leave group
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {previewImage && (
+        <div
+          className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-950/85 px-4"
+          onClick={() => {
+            setPreviewImage(null);
+            setPreviewAlt("");
+          }}
+          role="dialog"
+          aria-modal="true"
+        >
+          <div
+            className="relative max-h-[90vh] w-full max-w-4xl"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => {
+                setPreviewImage(null);
+                setPreviewAlt("");
+              }}
+              className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-slate-900/80 text-white shadow-lg transition hover:bg-slate-900"
+              aria-label="Close full-size photo"
+            >
+              <X size={18} />
+            </button>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={previewImage}
+              alt={previewAlt}
+              className="h-full w-full rounded-3xl object-contain"
+            />
+          </div>
+        </div>
+      )}
 
       <FooterNav
         activeView={activeView}
