@@ -1,7 +1,6 @@
 "use client";
 
 import Image from "next/image";
-import { Check } from "lucide-react";
 import AuthPanel from "@/components/auth/AuthPanel";
 
 export default function LandingPage() {
@@ -22,21 +21,17 @@ export default function LandingPage() {
         </div>
       </header>
 
-      <main className="flex flex-1 items-baseline justify-center px-6 py-4 mt-10">
-        <div className="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-2 lg:items-center">
-          <div className="space-y-2">
-            <div className="flex items-center  text-slate-500 w-full">
-              <h1 className="text-sm font-medium uppercase tracking-[0.2em]  w-full text-center">
-                Stay close
-              </h1>
-            </div>
-            <h2 className="text-sm font-extralight tracking-tight text-slate-900 sm:text-5xl">
-              Share real-time status updates with the people who matter most.
-            </h2>
-          </div>
-          <div className="flex justify-center lg:justify-end">
-            <AuthPanel />
-          </div>
+      <main className="flex sm:flex-row flex-col flex-1 items-baseline sm:justify-center mt-10 mx-10 gap-10">
+        <div className="flex-col w-full sm:w-2/3 text-slate-900 sm:justify-end ">
+          <h1 className="text-sm font-medium uppercase tracking-[0.2em] sm:text-end text-center sm:text-2xl sm:mb-5">
+            Stay close
+          </h1>
+          <h2 className="text-sm sm:text-2xl sm:pl-16 pt-4 sm:pt-2 font-extralight tracking-tight text-slate-900 sm:text-end ">
+            Share real-time status updates with the people who matter most.
+          </h2>
+        </div>
+        <div className="flex w-full sm:w-1/3 justify-center sm:justify-end">
+          <AuthPanel />
         </div>
       </main>
 
