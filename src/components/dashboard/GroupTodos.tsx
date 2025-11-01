@@ -595,8 +595,7 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
     }
   };
 
-  const ToDoCreationSection = () => (
-
+  const renderTodoCreationSection = () => (
         <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 shadow-inner">
           <h3 className="mb-3 text-sm font-semibold text-slate-800">New list</h3>
           <input
@@ -675,18 +674,25 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
         </div>
   );
 
-  const ToDosLoadingSection = () =>
-  (
-      loading ? (
-      <div className="rounded-2xl border border-slate-200 bg-white/70 px-4 py-6 text-center text-sm text-slate-500">
-        <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" />
-        Loading to-dos…
-      </div>
-    ) : todoLists.length === 0 ? (
-      <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 px-4 py-6 text-center text-sm text-slate-500">
-        No shared lists yet.
-      </div>
-    ) : (
+  const renderTodoListsSection = () => {
+    if (loading) {
+      return (
+        <div className="rounded-2xl border border-slate-200 bg-white/70 px-4 py-6 text-center text-sm text-slate-500">
+          <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" />
+          Loading to-dos…
+        </div>
+      );
+    }
+
+    if (todoLists.length === 0) {
+      return (
+        <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 px-4 py-6 text-center text-sm text-slate-500">
+          No shared lists yet.
+        </div>
+      );
+    }
+
+    return (
       <div className="space-y-4">
         {todoLists.map((list) => {
           const isPending = pendingListIds.has(list.id);
@@ -803,10 +809,10 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
           );
         })}
       </div>
-    )
-  );
+    );
+  };
 
-  const CardAction = () => (
+  const cardAction = (
     <Button
       variant={"halo"}
       onClick={() => {
@@ -820,28 +826,26 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
     </Button>
   );
 
-  const CardIcon = () => (
+  const cardIcon = (
     <MessageCircle
       aria-hidden
       className="lucide lucide-message-circle h-[18px] w-[18px]"
     />
   );
 
-  const CardContent = () => {
-    return (
-      <>
-        {showCreateTodo && <ToDoCreationSection />}
-        <ToDosLoadingSection />
-        {error && <p className="mt-4 text-xs text-rose-500">{error}</p>}
-      </>
-    );
-  };
+  const cardContent = (
+    <>
+      {showCreateTodo && renderTodoCreationSection()}
+      {renderTodoListsSection()}
+      {error && <p className="mt-4 text-xs text-rose-500">{error}</p>}
+    </>
+  );
 
   return (
     <CardComponent
-      content={<CardContent />}
-      icon={<CardIcon />}
-      titleAction={<CardAction />}
+      content={cardContent}
+      icon={cardIcon}
+      titleAction={cardAction}
       titleText="Group lists"
     />
   );
