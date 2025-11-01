@@ -254,7 +254,7 @@ export default function AuthPanel() {
 
             <Button
               type="submit"
-              className="w-full mt-2 text-sm font-light text-[#0a1420] bg-[#D3EFCE] rounded-4xl"
+              variant={"halo"}
               disabled={isPending || form.formState.isSubmitting}
             >
               {isPending

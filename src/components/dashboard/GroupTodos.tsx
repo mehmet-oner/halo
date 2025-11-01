@@ -1,20 +1,22 @@
-'use client';
+"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
   Check,
-  ListTodo,
   Loader2,
+  MessageCircle,
   Plus,
   Trash2,
-} from 'lucide-react';
+} from "lucide-react";
 import { findDuplicateIndexes, uniquePreserveOrder } from "@/utils/list";
 import type { GroupTodoListRecord } from "@/types/todos";
 import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 import { buildRealtimeInFilter } from "@/utils/realtime";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import { Button } from "../ui/button";
+import { CardComponent } from "./CardComponent";
 
 type GroupTodosProps = {
   groupId: string;
@@ -29,10 +31,14 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showCreateTodo, setShowCreateTodo] = useState(false);
-  const [newTodoTitle, setNewTodoTitle] = useState('');
-  const [newTodoItems, setNewTodoItems] = useState<string[]>(['', '']);
-  const [todoValidationError, setTodoValidationError] = useState<string | null>(null);
-  const [todoDraftItems, setTodoDraftItems] = useState<Record<string, string>>({});
+  const [newTodoTitle, setNewTodoTitle] = useState("");
+  const [newTodoItems, setNewTodoItems] = useState<string[]>(["", ""]);
+  const [todoValidationError, setTodoValidationError] = useState<string | null>(
+    null
+  );
+  const [todoDraftItems, setTodoDraftItems] = useState<Record<string, string>>(
+    {}
+  );
   const [creatingList, setCreatingList] = useState(false);
   const [pendingListIds, setPendingListIds] = useState<Set<string>>(new Set());
   const setListPending = useCallback((listId: string, pending: boolean) => {
@@ -47,13 +53,19 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
     });
   }, []);
 
-  const fetchTodoLists = useCallback(async (): Promise<GroupTodoListRecord[]> => {
-    const response = await fetch(`/api/groups/${groupId}/todos`, { cache: 'no-store' });
+  const fetchTodoLists = useCallback(async (): Promise<
+    GroupTodoListRecord[]
+  > => {
+    const response = await fetch(`/api/groups/${groupId}/todos`, {
+      cache: "no-store",
+    });
     const payload = await response.json().catch(() => ({}));
 
     if (!response.ok) {
       const errorMessage =
-        typeof payload.error === 'string' ? payload.error : 'Unable to load group lists.';
+        typeof payload.error === "string"
+          ? payload.error
+          : "Unable to load group lists.";
       throw new Error(errorMessage);
     }
 
@@ -67,7 +79,9 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
       setError(null);
     } catch (refreshError) {
       const message =
-        refreshError instanceof Error ? refreshError.message : 'Unable to load group lists.';
+        refreshError instanceof Error
+          ? refreshError.message
+          : "Unable to load group lists.";
       setError(message);
     }
   }, [fetchTodoLists]);
@@ -84,8 +98,10 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
   );
 
   const todoHasDuplicateItems = duplicateTodoItemIndexes.size > 0;
-  const todoHasMinimumItems = trimmedTodoItems.filter(Boolean).length >= MIN_TODO_ITEMS;
-  const todoCreateDisabled = !trimmedTodoTitle || !todoHasMinimumItems || todoHasDuplicateItems;
+  const todoHasMinimumItems =
+    trimmedTodoItems.filter(Boolean).length >= MIN_TODO_ITEMS;
+  const todoCreateDisabled =
+    !trimmedTodoTitle || !todoHasMinimumItems || todoHasDuplicateItems;
 
   useEffect(() => {
     let cancelled = false;
@@ -101,7 +117,9 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
       } catch (loadError) {
         if (cancelled) return;
         const message =
-          loadError instanceof Error ? loadError.message : 'Unable to load group lists.';
+          loadError instanceof Error
+            ? loadError.message
+            : "Unable to load group lists.";
         setError(message);
         setTodoLists([]);
       } finally {
@@ -209,13 +227,15 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
   }, [todoCreateDisabled, todoValidationError]);
 
   const resetTodoComposer = () => {
-    setNewTodoTitle('');
-    setNewTodoItems(['', '']);
+    setNewTodoTitle("");
+    setNewTodoItems(["", ""]);
     setTodoValidationError(null);
   };
 
   const addTodoComposerItem = () => {
-    setNewTodoItems((previous) => (previous.length < MAX_TODO_ITEMS ? [...previous, ''] : previous));
+    setNewTodoItems((previous) =>
+      previous.length < MAX_TODO_ITEMS ? [...previous, ""] : previous
+    );
   };
 
   const updateTodoComposerItem = (index: number, value: string) => {
@@ -235,7 +255,7 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
 
   const createTodoList = async () => {
     if (todoCreateDisabled) {
-      setTodoValidationError('Add a title and at least one unique item.');
+      setTodoValidationError("Add a title and at least one unique item.");
       return;
     }
 
@@ -244,8 +264,8 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
     setCreatingList(true);
     try {
       const response = await fetch(`/api/groups/${groupId}/todos`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: trimmedTodoTitle,
           items: uniqueItems,
@@ -254,7 +274,9 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         const problem =
-          typeof payload.error === 'string' ? payload.error : 'Unable to create list.';
+          typeof payload.error === "string"
+            ? payload.error
+            : "Unable to create list.";
         throw new Error(problem);
       }
 
@@ -271,7 +293,9 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
       setError(null);
     } catch (createError) {
       const message =
-        createError instanceof Error ? createError.message : 'Unable to create list.';
+        createError instanceof Error
+          ? createError.message
+          : "Unable to create list.";
       setTodoValidationError(message);
     } finally {
       setCreatingList(false);
@@ -285,11 +309,15 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
     }
     setListPending(listId, true);
     try {
-      const response = await fetch(`/api/groups/${groupId}/todos/${listId}`, { method: 'DELETE' });
+      const response = await fetch(`/api/groups/${groupId}/todos/${listId}`, {
+        method: "DELETE",
+      });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         const problem =
-          typeof payload.error === 'string' ? payload.error : 'Unable to delete list.';
+          typeof payload.error === "string"
+            ? payload.error
+            : "Unable to delete list.";
         throw new Error(problem);
       }
 
@@ -302,7 +330,9 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
       setError(null);
     } catch (deleteError) {
       const message =
-        deleteError instanceof Error ? deleteError.message : 'Unable to delete list.';
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Unable to delete list.";
       setError(message);
       await refreshTodoLists();
     } finally {
@@ -323,7 +353,9 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
           ? {
               ...candidate,
               items: candidate.items.map((item) =>
-                item.id === itemId ? { ...item, completed: nextCompleted } : item
+                item.id === itemId
+                  ? { ...item, completed: nextCompleted }
+                  : item
               ),
             }
           : candidate
@@ -334,22 +366,26 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
       const response = await fetch(
         `/api/groups/${groupId}/todos/${listId}/items/${itemId}`,
         {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ completed: nextCompleted }),
         }
       );
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         const problem =
-          typeof payload.error === 'string' ? payload.error : 'Unable to update item.';
+          typeof payload.error === "string"
+            ? payload.error
+            : "Unable to update item.";
         throw new Error(problem);
       }
 
       const updatedList = payload.list as GroupTodoListRecord | undefined;
       if (updatedList) {
         setTodoLists((previous) =>
-          previous.map((candidate) => (candidate.id === listId ? updatedList : candidate))
+          previous.map((candidate) =>
+            candidate.id === listId ? updatedList : candidate
+          )
         );
       } else {
         await refreshTodoLists();
@@ -357,7 +393,9 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
       setError(null);
     } catch (updateError) {
       const message =
-        updateError instanceof Error ? updateError.message : 'Unable to update item.';
+        updateError instanceof Error
+          ? updateError.message
+          : "Unable to update item.";
       setError(message);
       await refreshTodoLists();
     } finally {
@@ -384,19 +422,23 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
     try {
       const response = await fetch(
         `/api/groups/${groupId}/todos/${listId}/items/${itemId}`,
-        { method: 'DELETE' }
+        { method: "DELETE" }
       );
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         const problem =
-          typeof payload.error === 'string' ? payload.error : 'Unable to delete item.';
+          typeof payload.error === "string"
+            ? payload.error
+            : "Unable to delete item.";
         throw new Error(problem);
       }
 
       const updatedList = payload.list as GroupTodoListRecord | undefined;
       if (updatedList) {
         setTodoLists((previous) =>
-          previous.map((candidate) => (candidate.id === listId ? updatedList : candidate))
+          previous.map((candidate) =>
+            candidate.id === listId ? updatedList : candidate
+          )
         );
       } else {
         await refreshTodoLists();
@@ -404,7 +446,9 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
       setError(null);
     } catch (deleteError) {
       const message =
-        deleteError instanceof Error ? deleteError.message : 'Unable to delete item.';
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Unable to delete item.";
       setError(message);
       await refreshTodoLists();
     } finally {
@@ -415,7 +459,7 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
   const moveTodoItem = async (
     listId: string,
     itemId: string,
-    direction: 'up' | 'down'
+    direction: "up" | "down"
   ) => {
     const list = todoLists.find((candidate) => candidate.id === listId);
     if (!list) return;
@@ -423,7 +467,7 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
     const index = list.items.findIndex((item) => item.id === itemId);
     if (index === -1) return;
 
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    const targetIndex = direction === "up" ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= list.items.length) {
       return;
     }
@@ -440,24 +484,31 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
     );
 
     try {
-      const response = await fetch(`/api/groups/${groupId}/todos/${listId}/reorder`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          itemIds: reordered.map((item) => item.id),
-        }),
-      });
+      const response = await fetch(
+        `/api/groups/${groupId}/todos/${listId}/reorder`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            itemIds: reordered.map((item) => item.id),
+          }),
+        }
+      );
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         const problem =
-          typeof payload.error === 'string' ? payload.error : 'Unable to reorder items.';
+          typeof payload.error === "string"
+            ? payload.error
+            : "Unable to reorder items.";
         throw new Error(problem);
       }
 
       const updatedList = payload.list as GroupTodoListRecord | undefined;
       if (updatedList) {
         setTodoLists((previous) =>
-          previous.map((candidate) => (candidate.id === listId ? updatedList : candidate))
+          previous.map((candidate) =>
+            candidate.id === listId ? updatedList : candidate
+          )
         );
       } else {
         await refreshTodoLists();
@@ -465,7 +516,9 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
       setError(null);
     } catch (reorderError) {
       const message =
-        reorderError instanceof Error ? reorderError.message : 'Unable to reorder items.';
+        reorderError instanceof Error
+          ? reorderError.message
+          : "Unable to reorder items.";
       setError(message);
       await refreshTodoLists();
     } finally {
@@ -478,7 +531,7 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
   };
 
   const addTodoItemToList = async (listId: string) => {
-    const draftRaw = todoDraftItems[listId] ?? '';
+    const draftRaw = todoDraftItems[listId] ?? "";
     const draft = draftRaw.trim();
     if (!draft) return;
 
@@ -490,67 +543,60 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
       return;
     }
 
-    if (list.items.some((item) => item.label.toLowerCase() === draft.toLowerCase())) {
-      setError('That item is already on the list.');
+    if (
+      list.items.some(
+        (item) => item.label.toLowerCase() === draft.toLowerCase()
+      )
+    ) {
+      setError("That item is already on the list.");
       return;
     }
 
     setListPending(listId, true);
     try {
-      const response = await fetch(`/api/groups/${groupId}/todos/${listId}/items`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ label: draft }),
-      });
+      const response = await fetch(
+        `/api/groups/${groupId}/todos/${listId}/items`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ label: draft }),
+        }
+      );
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) {
         const problem =
-          typeof payload.error === 'string' ? payload.error : 'Unable to add item.';
+          typeof payload.error === "string"
+            ? payload.error
+            : "Unable to add item.";
         throw new Error(problem);
       }
 
       const updatedList = payload.list as GroupTodoListRecord | undefined;
       if (updatedList) {
         setTodoLists((previous) =>
-          previous.map((candidate) => (candidate.id === listId ? updatedList : candidate))
+          previous.map((candidate) =>
+            candidate.id === listId ? updatedList : candidate
+          )
         );
       } else {
         await refreshTodoLists();
       }
 
-      setTodoDraftItems((previous) => ({ ...previous, [listId]: '' }));
+      setTodoDraftItems((previous) => ({ ...previous, [listId]: "" }));
       setError(null);
     } catch (insertError) {
       const message =
-        insertError instanceof Error ? insertError.message : 'Unable to add item.';
+        insertError instanceof Error
+          ? insertError.message
+          : "Unable to add item.";
       setError(message);
     } finally {
       setListPending(listId, false);
     }
   };
 
-  return (
-    <section className="rounded-3xl border border-slate-200 bg-white/80 p-6 shadow-sm backdrop-blur">
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="flex items-center gap-2 text-lg font-medium text-slate-900">
-            <ListTodo size={18} />
-            Group lists
-          </h2>
-        </div>
-        <button
-          onClick={() => {
-            setShowCreateTodo(true);
-            setTodoValidationError(null);
-          }}
-          className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:border-slate-400 hover:bg-slate-100/80"
-          aria-label="Create to-do list"
-        >
-          <Plus size={18} />
-        </button>
-      </div>
+  const ToDoCreationSection = () => (
 
-      {showCreateTodo && (
         <div className="mb-6 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 shadow-inner">
           <h3 className="mb-3 text-sm font-semibold text-slate-800">New list</h3>
           <input
@@ -627,141 +673,176 @@ export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
             </button>
           </div>
         </div>
-      )}
+  );
 
-      {loading ? (
-        <div className="rounded-2xl border border-slate-200 bg-white/70 px-4 py-6 text-center text-sm text-slate-500">
-          <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" />
-          Loading to-dos…
-        </div>
-      ) : todoLists.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 px-4 py-6 text-center text-sm text-slate-500">
-          No shared lists yet.
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {todoLists.map((list) => {
-            const isPending = pendingListIds.has(list.id);
-            const canDelete = list.createdBy === userId;
-            const draftValue = todoDraftItems[list.id] ?? '';
-            const trimmedDraft = draftValue.trim();
+  const ToDosLoadingSection = () =>
+  (
+      loading ? (
+      <div className="rounded-2xl border border-slate-200 bg-white/70 px-4 py-6 text-center text-sm text-slate-500">
+        <Loader2 className="mx-auto mb-2 h-5 w-5 animate-spin" />
+        Loading to-dos…
+      </div>
+    ) : todoLists.length === 0 ? (
+      <div className="rounded-2xl border border-dashed border-slate-200 bg-white/60 px-4 py-6 text-center text-sm text-slate-500">
+        No shared lists yet.
+      </div>
+    ) : (
+      <div className="space-y-4">
+        {todoLists.map((list) => {
+          const isPending = pendingListIds.has(list.id);
+          const canDelete = list.createdBy === userId;
+          const draftValue = todoDraftItems[list.id] ?? '';
+          const trimmedDraft = draftValue.trim();
 
-            return (
-              <div key={list.id} className="rounded-2xl border border-slate-200 bg-white/70 p-4 shadow-sm">
-                <div className="mb-3 flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{list.title}</p>
-                    <p className="text-xs text-slate-400">
-                      {new Date(list.createdAt).toLocaleDateString(undefined, {
-                        month: 'short',
-                        day: 'numeric',
-                      })}
-                    </p>
-                  </div>
-                  {canDelete && (
-                    <button
-                      onClick={() => void deleteTodoList(list.id)}
-                      disabled={isPending}
-                      className="flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-500 transition hover:border-slate-400 hover:bg-slate-100/70 disabled:cursor-not-allowed disabled:opacity-60"
-                      type="button"
-                    >
-                      {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 size={14} />}
-                    </button>
-                  )}
+          return (
+            <div key={list.id} className="rounded-2xl border border-slate-200 bg-white/70 p-4 shadow-sm">
+              <div className="mb-3 flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{list.title}</p>
+                  <p className="text-xs text-slate-400">
+                    {new Date(list.createdAt).toLocaleDateString(undefined, {
+                      month: 'short',
+                      day: 'numeric',
+                    })}
+                  </p>
                 </div>
-
-                <div className="space-y-2">
-                  {list.items.map((item, index) => {
-                    const isFirst = index === 0;
-                    const isLast = index === list.items.length - 1;
-                    return (
-                      <div
-                        key={item.id}
-                        className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
-                      >
-                        <button
-                          type="button"
-                          onClick={() => void toggleTodoItem(list.id, item.id)}
-                          disabled={isPending}
-                          className={`flex flex-1 items-center gap-3 text-left transition ${
-                            item.completed ? 'text-slate-400 line-through' : 'text-slate-700'
-                          } ${isPending ? 'cursor-not-allowed opacity-70' : ''}`}
-                        >
-                          <span
-                            className={`flex h-6 w-6 items-center justify-center rounded-full border transition ${
-                              item.completed
-                                ? 'border-slate-400 bg-slate-200 text-slate-600'
-                                : 'border-slate-300 text-transparent'
-                            }`}
-                            aria-hidden
-                          >
-                            <Check size={14} />
-                          </span>
-                          <span>{item.label}</span>
-                        </button>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => void moveTodoItem(list.id, item.id, 'up')}
-                            disabled={isFirst || isPending}
-                            className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:text-slate-200"
-                            aria-label="Move item up"
-                          >
-                            <ArrowUp size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void moveTodoItem(list.id, item.id, 'down')}
-                            disabled={isLast || isPending}
-                            className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:text-slate-200"
-                            aria-label="Move item down"
-                          >
-                            <ArrowDown size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void removeTodoItem(list.id, item.id)}
-                            disabled={isPending}
-                            className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:text-slate-200"
-                            aria-label="Remove task"
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                <div className="mt-3 flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={draftValue}
-                    onChange={(event) => updateDraftItem(list.id, event.target.value)}
-                    placeholder="Add an item"
-                    disabled={isPending}
-                    className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400/60 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                  />
+                {canDelete && (
                   <button
-                    onClick={() => void addTodoItemToList(list.id)}
-                    disabled={isPending || trimmedDraft.length === 0}
-                    className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100/70 disabled:cursor-not-allowed disabled:text-slate-300"
+                    onClick={() => void deleteTodoList(list.id)}
+                    disabled={isPending}
+                    className="flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-500 transition hover:border-slate-400 hover:bg-slate-100/70 disabled:cursor-not-allowed disabled:opacity-60"
                     type="button"
                   >
-                    Add
+                    {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 size={14} />}
                   </button>
-                </div>
+                )}
               </div>
-            );
-          })}
-        </div>
-      )}
 
-      {error && (
-        <p className="mt-4 text-xs text-rose-500">
-          {error}
-        </p>
-      )}
-    </section>
+              <div className="space-y-2">
+                {list.items.map((item, index) => {
+                  const isFirst = index === 0;
+                  const isLast = index === list.items.length - 1;
+                  return (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => void toggleTodoItem(list.id, item.id)}
+                        disabled={isPending}
+                        className={`flex flex-1 items-center gap-3 text-left transition ${
+                          item.completed ? 'text-slate-400 line-through' : 'text-slate-700'
+                        } ${isPending ? 'cursor-not-allowed opacity-70' : ''}`}
+                      >
+                        <span
+                          className={`flex h-6 w-6 items-center justify-center rounded-full border transition ${
+                            item.completed
+                              ? 'border-slate-400 bg-slate-200 text-slate-600'
+                              : 'border-slate-300 text-transparent'
+                          }`}
+                          aria-hidden
+                        >
+                          <Check size={14} />
+                        </span>
+                        <span>{item.label}</span>
+                      </button>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => void moveTodoItem(list.id, item.id, 'up')}
+                          disabled={isFirst || isPending}
+                          className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:text-slate-200"
+                          aria-label="Move item up"
+                        >
+                          <ArrowUp size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void moveTodoItem(list.id, item.id, 'down')}
+                          disabled={isLast || isPending}
+                          className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:text-slate-200"
+                          aria-label="Move item down"
+                        >
+                          <ArrowDown size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void removeTodoItem(list.id, item.id)}
+                          disabled={isPending}
+                          className="rounded-full p-1 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:text-slate-200"
+                          aria-label="Remove task"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-3 flex items-center gap-2">
+                <input
+                  type="text"
+                  value={draftValue}
+                  onChange={(event) => updateDraftItem(list.id, event.target.value)}
+                  placeholder="Add an item"
+                  disabled={isPending}
+                  className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 transition focus:border-stone-500 focus:outline-none focus:ring-1 focus:ring-stone-400/60 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                />
+                <button
+                  onClick={() => void addTodoItemToList(list.id)}
+                  disabled={isPending || trimmedDraft.length === 0}
+                  className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-400 hover:bg-slate-100/70 disabled:cursor-not-allowed disabled:text-slate-300"
+                  type="button"
+                >
+                  Add
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    )
+  );
+
+  const CardAction = () => (
+    <Button
+      variant={"halo"}
+      onClick={() => {
+        setShowCreateTodo(true);
+        setTodoValidationError(null);
+      }}
+      className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-200 text-slate-600 transition hover:border-slate-400 hover:bg-slate-100/80"
+      aria-label="Create to-do list"
+    >
+      <Plus size={18} />
+    </Button>
+  );
+
+  const CardIcon = () => (
+    <MessageCircle
+      aria-hidden
+      className="lucide lucide-message-circle h-[18px] w-[18px]"
+    />
+  );
+
+  const CardContent = () => {
+    return (
+      <>
+        {showCreateTodo && <ToDoCreationSection />}
+        <ToDosLoadingSection />
+        {error && <p className="mt-4 text-xs text-rose-500">{error}</p>}
+      </>
+    );
+  };
+
+  return (
+    <CardComponent
+      content={<CardContent />}
+      icon={<CardIcon />}
+      titleAction={<CardAction />}
+      titleText="Group lists"
+    />
   );
 }

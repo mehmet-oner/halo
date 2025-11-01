@@ -36,18 +36,44 @@ export function useSupabaseRealtime({
     handlers.forEach(({ callback, events, ...config }) => {
       const changeEvents: ReadonlyArray<PostgresChangeEvent> =
         events && events.length ? events : ['*'];
-      changeEvents.forEach((event) => {
+      const filterBase = {
+        schema: config.schema ?? 'public',
+        table: config.table,
+        filter: config.filter,
+      };
+
+      if (changeEvents.includes('*')) {
         channel.on(
           'postgres_changes',
-          {
-            event,
-            schema: config.schema ?? 'public',
-            table: config.table,
-            filter: config.filter,
-          },
+          { ...filterBase, event: '*' },
           callback
         );
-      });
+        return;
+      }
+
+      if (changeEvents.includes('INSERT')) {
+        channel.on(
+          'postgres_changes',
+          { ...filterBase, event: 'INSERT' },
+          callback
+        );
+      }
+
+      if (changeEvents.includes('UPDATE')) {
+        channel.on(
+          'postgres_changes',
+          { ...filterBase, event: 'UPDATE' },
+          callback
+        );
+      }
+
+      if (changeEvents.includes('DELETE')) {
+        channel.on(
+          'postgres_changes',
+          { ...filterBase, event: 'DELETE' },
+          callback
+        );
+      }
     });
 
     const subscription = channel.subscribe((status) => {
