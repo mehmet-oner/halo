@@ -4,6 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Check, Loader2, MessageCircle, Plus, Trash2 } from "lucide-react";
 import { findDuplicateIndexes } from "@/utils/list";
 import type { GroupPollRecord } from "@/types/polls";
+import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
+import { buildRealtimeInFilter } from "@/utils/realtime";
+import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
 type QuickPollsProps = {
   userId: string;
@@ -11,7 +14,6 @@ type QuickPollsProps = {
 };
 
 const MAX_OPTIONS = 6;
-const POLL_INTERVAL_MS = 5_000;
 
 const createEmptyOptions = () => ['', ''];
 
@@ -56,12 +58,12 @@ export default function QuickPolls({ userId, groupId }: QuickPollsProps) {
         setLoading(true);
         setError(null);
       }
-    try {
-      const response = await fetch(`/api/groups/${groupId}/polls`, { cache: 'no-store' });
-      if (!response.ok) {
-        const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.error ?? 'Unable to load polls.');
-      }
+      try {
+        const response = await fetch(`/api/groups/${groupId}/polls`, { cache: 'no-store' });
+        if (!response.ok) {
+          const payload = await response.json().catch(() => ({}));
+          throw new Error(payload.error ?? 'Unable to load polls.');
+        }
 
       const payload = (await response.json()) as { polls: GroupPollRecord[] };
       setPolls(payload.polls ?? []);
@@ -85,20 +87,90 @@ export default function QuickPolls({ userId, groupId }: QuickPollsProps) {
     void fetchPolls();
   }, [fetchPolls]);
 
-  useEffect(() => {
-    const poll = () => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-        return;
-      }
-      if (creatingPoll || pendingVotePollId || pendingDeletePollId) {
-        return;
-      }
-      void fetchPolls({ background: true });
-    };
+  const handleRealtimeRefresh = useCallback(() => {
+    setPendingVotePollId(null);
+    setPendingDeletePollId(null);
+    void fetchPolls({ background: true });
+  }, [fetchPolls]);
 
-    const interval = window.setInterval(poll, POLL_INTERVAL_MS);
-    return () => window.clearInterval(interval);
-  }, [creatingPoll, fetchPolls, pendingDeletePollId, pendingVotePollId]);
+  const pollIdFilter = useMemo(
+    () => buildRealtimeInFilter('poll_id', polls.map((poll) => poll.id)),
+    [polls]
+  );
+
+  const handlePollChange = useCallback(
+    (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+      if (payload.eventType === 'DELETE') {
+        const oldRow = payload.old as { id?: string } | null;
+        const removedId = oldRow?.id;
+        if (removedId) {
+          setPolls((previous) => previous.filter((poll) => poll.id !== removedId));
+        }
+      }
+
+      handleRealtimeRefresh();
+    },
+    [handleRealtimeRefresh]
+  );
+
+  const handlePollChildChange = useCallback(() => {
+    handleRealtimeRefresh();
+  }, [handleRealtimeRefresh]);
+
+  const realtimeHandlers = useMemo(() => {
+    if (!groupId) return null;
+    const handlers = [
+      {
+        events: ['INSERT', 'UPDATE'] as const,
+        table: 'group_polls',
+        filter: `group_id=eq.${groupId}`,
+        callback: handlePollChange,
+      },
+      {
+        events: ['DELETE'] as const,
+        table: 'group_polls',
+        callback: handlePollChange,
+      },
+    ];
+
+    if (pollIdFilter) {
+      handlers.push(
+        {
+          events: ['INSERT', 'UPDATE'] as const,
+          table: 'group_poll_options',
+          filter: pollIdFilter,
+          callback: handlePollChildChange,
+        },
+        {
+          events: ['INSERT', 'UPDATE'] as const,
+          table: 'group_poll_votes',
+          filter: pollIdFilter,
+          callback: handlePollChildChange,
+        }
+      );
+    }
+
+    handlers.push(
+      {
+        events: ['DELETE'] as const,
+        table: 'group_poll_options',
+        callback: handlePollChildChange,
+      },
+      {
+        events: ['DELETE'] as const,
+        table: 'group_poll_votes',
+        callback: handlePollChildChange,
+      }
+    );
+
+    return handlers;
+  }, [groupId, handlePollChange, handlePollChildChange, pollIdFilter]);
+
+  useSupabaseRealtime({
+    channelName: groupId ? `group-polls:${groupId}` : null,
+    handlers: realtimeHandlers,
+    onSubscribe: handleRealtimeRefresh,
+  });
 
   useEffect(() => {
     if (!pollValidationError) return;

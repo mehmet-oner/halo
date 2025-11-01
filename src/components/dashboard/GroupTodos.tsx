@@ -12,16 +12,19 @@ import {
 } from 'lucide-react';
 import { findDuplicateIndexes, uniquePreserveOrder } from "@/utils/list";
 import type { GroupTodoListRecord } from "@/types/todos";
+import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
+import { buildRealtimeInFilter } from "@/utils/realtime";
+import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 
 type GroupTodosProps = {
   groupId: string;
+  userId: string;
 };
 
 const MAX_TODO_ITEMS = 10;
 const MIN_TODO_ITEMS = 1;
-const TODO_POLL_INTERVAL_MS = 5_000;
 
-export default function GroupTodos({ groupId }: GroupTodosProps) {
+export default function GroupTodos({ groupId, userId }: GroupTodosProps) {
   const [todoLists, setTodoLists] = useState<GroupTodoListRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -115,20 +118,88 @@ export default function GroupTodos({ groupId }: GroupTodosProps) {
     };
   }, [fetchTodoLists]);
 
-  useEffect(() => {
-    const poll = () => {
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-        return;
-      }
-      if (creatingList || pendingListIds.size > 0) {
-        return;
-      }
-      void refreshTodoLists();
-    };
+  const handleRealtimeRefresh = useCallback(() => {
+    void refreshTodoLists();
+  }, [refreshTodoLists]);
 
-    const interval = window.setInterval(poll, TODO_POLL_INTERVAL_MS);
-    return () => window.clearInterval(interval);
-  }, [creatingList, pendingListIds, refreshTodoLists]);
+  const listIdFilter = useMemo(
+    () => buildRealtimeInFilter('list_id', todoLists.map((list) => list.id)),
+    [todoLists]
+  );
+
+  const handleListChange = useCallback(() => {
+    handleRealtimeRefresh();
+  }, [handleRealtimeRefresh]);
+
+  const handleListDeletion = useCallback(
+    (payload: RealtimePostgresChangesPayload<Record<string, unknown>>) => {
+      const oldRow = payload.old as { id?: string } | null;
+      const removedId = oldRow?.id;
+
+      if (removedId) {
+        setTodoLists((previous) => previous.filter((list) => list.id !== removedId));
+        setTodoDraftItems((previous) => {
+          if (!(removedId in previous)) return previous;
+          const next = { ...previous };
+          delete next[removedId];
+          return next;
+        });
+        setPendingListIds((previous) => {
+          if (!previous.has(removedId)) return previous;
+          const next = new Set(previous);
+          next.delete(removedId);
+          return next;
+        });
+      }
+
+      handleRealtimeRefresh();
+    },
+    [handleRealtimeRefresh]
+  );
+
+  const handleListItemChange = useCallback(() => {
+    handleRealtimeRefresh();
+  }, [handleRealtimeRefresh]);
+
+  const realtimeHandlers = useMemo(() => {
+    if (!groupId) return null;
+    const handlers = [
+      {
+        events: ['INSERT', 'UPDATE'] as const,
+        table: 'group_lists',
+        filter: `group_id=eq.${groupId}`,
+        callback: handleListChange,
+      },
+      {
+        events: ['DELETE'] as const,
+        table: 'group_lists',
+        callback: handleListDeletion,
+      },
+    ];
+
+    if (listIdFilter) {
+      handlers.push({
+        events: ['INSERT', 'UPDATE'] as const,
+        table: 'group_list_items',
+        filter: listIdFilter,
+        callback: handleListItemChange,
+      });
+    }
+
+    handlers.push({
+      events: ['DELETE'] as const,
+      table: 'group_list_items',
+      callback: handleListItemChange,
+    });
+
+    return handlers;
+  }, [groupId, handleListChange, handleListDeletion, handleListItemChange, listIdFilter]);
+
+  useSupabaseRealtime({
+    channelName: groupId ? `group-todos:${groupId}` : null,
+    handlers: realtimeHandlers,
+    onSubscribe: handleRealtimeRefresh,
+  });
 
   useEffect(() => {
     if (!todoValidationError) return;
@@ -208,6 +279,10 @@ export default function GroupTodos({ groupId }: GroupTodosProps) {
   };
 
   const deleteTodoList = async (listId: string) => {
+    const list = todoLists.find((candidate) => candidate.id === listId);
+    if (!list || list.createdBy !== userId) {
+      return;
+    }
     setListPending(listId, true);
     try {
       const response = await fetch(`/api/groups/${groupId}/todos/${listId}`, { method: 'DELETE' });
@@ -567,6 +642,7 @@ export default function GroupTodos({ groupId }: GroupTodosProps) {
         <div className="space-y-4">
           {todoLists.map((list) => {
             const isPending = pendingListIds.has(list.id);
+            const canDelete = list.createdBy === userId;
             const draftValue = todoDraftItems[list.id] ?? '';
             const trimmedDraft = draftValue.trim();
 
@@ -582,14 +658,16 @@ export default function GroupTodos({ groupId }: GroupTodosProps) {
                       })}
                     </p>
                   </div>
-                  <button
-                    onClick={() => void deleteTodoList(list.id)}
-                    disabled={isPending}
-                    className="flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-500 transition hover:border-slate-400 hover:bg-slate-100/70 disabled:cursor-not-allowed disabled:opacity-60"
-                    type="button"
-                  >
-                    {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 size={14} />}
-                  </button>
+                  {canDelete && (
+                    <button
+                      onClick={() => void deleteTodoList(list.id)}
+                      disabled={isPending}
+                      className="flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-2 text-xs font-medium text-slate-500 transition hover:border-slate-400 hover:bg-slate-100/70 disabled:cursor-not-allowed disabled:opacity-60"
+                      type="button"
+                    >
+                      {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 size={14} />}
+                    </button>
+                  )}
                 </div>
 
                 <div className="space-y-2">

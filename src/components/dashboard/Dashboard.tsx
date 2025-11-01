@@ -336,6 +336,7 @@ export default function Dashboard({
               <GroupTodos
                 key={`todos-${activeGroup.id}`}
                 groupId={activeGroup.id}
+                userId={userId}
               />
             )}
           </>

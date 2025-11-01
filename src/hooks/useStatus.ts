@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useState } from "react";
+'use client';
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { getGroupStatuses, postGroupStatus } from "@/services/statuses";
-import {
-  STATUS_POLL_INTERVAL_MS,
-  formatRelativeTimestamp,
-} from "@/utils/time";
+import { formatRelativeTimestamp } from "@/utils/time";
 import type { GroupStatusRecord } from "@/types/groups";
+import { useSupabaseRealtime } from "@/hooks/useSupabaseRealtime";
 
 export type MemberStatus = {
   status: string;
@@ -69,13 +70,87 @@ export function useStatus(activeGroupId: string | null, userId: string) {
     [activeGroupId, syncGroupStatuses]
   );
 
-  // Polling
   useEffect(() => {
     if (!activeGroupId) return;
-    fetchStatuses();
-    const interval = setInterval(fetchStatuses, STATUS_POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
+    void fetchStatuses();
   }, [activeGroupId, fetchStatuses]);
+
+  const handleRealtimeChange = useCallback(
+    (
+      payload: RealtimePostgresChangesPayload<Record<string, unknown>>
+    ) => {
+      if (payload.eventType === "DELETE") {
+        const oldRow = payload.old as
+          | {
+              group_id?: string;
+              user_id?: string;
+            }
+          | null;
+        const groupId = oldRow?.group_id;
+        const memberId = oldRow?.user_id;
+        if (!groupId || !memberId) return;
+        const statusKey = getStatusKey(groupId, memberId);
+        setMemberStatuses((previous) => {
+          if (!(statusKey in previous)) return previous;
+          const next = { ...previous };
+          delete next[statusKey];
+          return next;
+        });
+        return;
+      }
+
+      const newRow = payload.new as
+        | {
+            group_id?: string;
+            user_id?: string;
+            status?: string;
+            emoji?: string | null;
+            image?: string | null;
+            expires_at?: string | null;
+            updated_at?: string;
+          }
+        | null;
+
+      if (!newRow?.group_id || !newRow.user_id || !newRow.updated_at) {
+        return;
+      }
+
+      const record: GroupStatusRecord = {
+        groupId: newRow.group_id,
+        userId: newRow.user_id,
+        status: newRow.status ?? "",
+        emoji: newRow.emoji ?? null,
+        image: newRow.image ?? null,
+        expiresAt: newRow.expires_at ?? null,
+        updatedAt: newRow.updated_at,
+      };
+
+      syncGroupStatuses(newRow.group_id, [record], false);
+    },
+    [syncGroupStatuses]
+  );
+
+  const realtimeHandlers = useMemo(() => {
+    if (!activeGroupId) return null;
+    return [
+      {
+        events: ["INSERT", "UPDATE", "DELETE"] as const,
+        table: "group_statuses",
+        filter: `group_id=eq.${activeGroupId}`,
+        callback: handleRealtimeChange,
+      },
+    ];
+  }, [activeGroupId, handleRealtimeChange]);
+
+  const handleSubscribed = useCallback(() => {
+    void fetchStatuses();
+  }, [fetchStatuses]);
+
+  useSupabaseRealtime({
+    channelName: activeGroupId ? `group-statuses:${activeGroupId}` : null,
+    handlers: realtimeHandlers,
+    onSubscribe: handleSubscribed,
+  });
 
   // Expiration cleanup
   useEffect(() => {

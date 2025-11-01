@@ -21,6 +21,25 @@ export async function DELETE(
 
   const supabaseAdmin = await getSupabaseAdmin();
 
+  const { data: listRow, error: fetchError } = await supabaseAdmin
+    .from('group_lists')
+    .select('id, group_id, created_by')
+    .eq('id', listId)
+    .maybeSingle();
+
+  if (fetchError || !listRow) {
+    console.error('Failed to load todo list before delete', fetchError);
+    return NextResponse.json({ error: 'List not found.' }, { status: 404 });
+  }
+
+  if (listRow.group_id !== groupId) {
+    return NextResponse.json({ error: 'List not found.' }, { status: 404 });
+  }
+
+  if (listRow.created_by !== auth.user.id) {
+    return NextResponse.json({ error: 'Only the list creator can remove it.' }, { status: 403 });
+  }
+
   const { error } = await supabaseAdmin
     .from('group_lists')
     .delete()

@@ -6,8 +6,6 @@ export const STATUS_TIMEOUTS: Record<string, number> = {
   "24h": 24 * 60 * 60 * 1000,
 };
 
-export const STATUS_POLL_INTERVAL_MS = 5_000;
-
 export function formatRelativeTimestamp(iso: string) {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return "Just now";
